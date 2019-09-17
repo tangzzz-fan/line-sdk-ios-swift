@@ -1,5 +1,5 @@
 //
-//  LineSDKGetBotFriendshipStatusResponse.swift
+//  JSONConverter.swift
 //
 //  Copyright (c) 2016-present, LINE Corporation. All rights reserved.
 //
@@ -19,15 +19,13 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
-#if !LineSDKCocoaPods
-import LineSDK
-#endif
+import Foundation
 
-@objcMembers
-public class LineSDKGetBotFriendshipStatusResponse: NSObject {
-    let _value: GetBotFriendshipStatusRequest.Response
-    init(_ value: GetBotFriendshipStatusRequest.Response) { _value = value }
-    public var friendFlag: Bool { return _value.friendFlag }
+private let encoder = JSONEncoder()
 
-    public var json: String? { return toJSON(_value) }
+func toJSON<T: Encodable>(_ value: T) -> String? {
+    guard let data = try? encoder.encode(value) else {
+        return nil
+    }
+    return String(data: data, encoding: .utf8)
 }

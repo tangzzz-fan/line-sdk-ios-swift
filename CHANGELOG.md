@@ -4,6 +4,70 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.2.4] - 2019-08-23
+
+### Fixed
+
+- Source application validation is removed. Login with LINE app now works correctly on iOS 13. [#97](https://github.com/line/line-sdk-ios-swift/pull/97)
+
+## [5.2.3] - 2019-08-01
+
+### Fixed
+
+- An issue that the stored ID Token will be overwritten when a refreshed token is issued. [#88](https://github.com/line/line-sdk-ios-swift/pull/88)
+
+## [5.2.2] - 2019-07-29
+
+### Fixed
+
+- When verifying token, get the provider metadata `issuer` from open ID discovery document, instead of a fixed value. [#86](https://github.com/line/line-sdk-ios-swift/pull/86)
+
+## [5.2.1] - 2019-07-19
+
+### Fixed
+
+- Align the behavior of `LineSDKLoginButton` (wrapper class) to LoginButton, when user click login, will only return if login process is ongoing. [#78](https://github.com/line/line-sdk-ios-swift/pull/78)
+
+## [5.2.0] - 2019-06-12
+
+### Added
+
+- Support for customizing the language used when login through web page. Set `preferredWebPageLanguage` of `LoginManager` to apply the required language. The default behavior (using the system language on user's device) is not changed. [#61](https://github.com/line/line-sdk-ios-swift/pull/61)
+- Support for accessing AMR (Authentication Methods References) value in ID Token. [#63](https://github.com/line/line-sdk-ios-swift/pull/63)
+- Now you can use either Swift 4.2 or Swift 5.0 when integrating LINE SDK with CocoaPods. [#60](https://github.com/line/line-sdk-ios-swift/pull/60)
+
+### Fixed
+
+- The `refreshToken` in `AccessToken` is now marked as `private`. We do not encourage you to use or store the refresh token yourself. Instead, always use the refresh token API from client when you want to get a new access token.
+
+
+## [5.1.2] - 2019-04-15
+
+### Fixed
+
+- Logging out a user now revokes refresh token and its corresponding access tokens, instead of the current access token only. [#45](https://github.com/line/line-sdk-ios-swift/pull/45)
+
+## [5.1.1] - 2019-03-28
+
+### Fixed
+
+- Allow additional application bundle ID of LINE apps to grant authorization code.
+
+## [5.1.0] - 2019-02-26
+
+### Added
+
+- Some model types also support `Encodable` now for easier serialization.
+- Support JSON conversion for Objective-C model wrapper classes for future features.
+- Now you can get the raw ID Token value for server verification purpose.
+- Add compatibility for Swift 5.0 and Xcode 10.2.
+
+## [5.0.3] - 2019-01-17
+
+### Fixed
+
+- Build LineSDKObjC with Carthage now works properly with all targets included. [#13](https://github.com/line/line-sdk-ios-swift/issues/13)
+
 ## [5.0.2] - 2018-12-18
 
 ### Fixed
@@ -40,3 +104,12 @@ LINE SDK version 5 is not compatible with version 4.x. To upgrade to version 5, 
 [5.0.0]: https://github.com/line/line-sdk-ios-swift/releases/tag/5.0.0
 [5.0.1]: https://github.com/line/line-sdk-ios-swift/compare/5.0.0...5.0.1
 [5.0.2]: https://github.com/line/line-sdk-ios-swift/compare/5.0.1...5.0.2
+[5.0.3]: https://github.com/line/line-sdk-ios-swift/compare/5.0.2...5.0.3
+[5.1.0]: https://github.com/line/line-sdk-ios-swift/compare/5.0.3...5.1.0
+[5.1.1]: https://github.com/line/line-sdk-ios-swift/compare/5.1.0...5.1.1
+[5.1.2]: https://github.com/line/line-sdk-ios-swift/compare/5.1.1...5.1.2
+[5.2.0]: https://github.com/line/line-sdk-ios-swift/compare/5.1.2...5.2.0
+[5.2.1]: https://github.com/line/line-sdk-ios-swift/compare/5.2.0...5.2.1
+[5.2.2]: https://github.com/line/line-sdk-ios-swift/compare/5.2.1...5.2.2
+[5.2.3]: https://github.com/line/line-sdk-ios-swift/compare/5.2.2...5.2.3
+[5.2.4]: https://github.com/line/line-sdk-ios-swift/compare/5.2.3...5.2.4

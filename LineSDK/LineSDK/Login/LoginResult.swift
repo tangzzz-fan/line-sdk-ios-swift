@@ -35,4 +35,28 @@ public struct LoginResult {
     /// `LoginManagerOption` object when the user logs in. For more information, see Linking a bot with your LINE 
     /// Login channel at https://developers.line.me/en/docs/line-login/web/link-a-bot/.
     public let friendshipStatusChanged: Bool?
+    /// The `nonce` value when requesting ID Token during login process. Use this value as a parameter when you
+    /// verify the ID Token against the LINE server. This value is `nil` if `.openID` permission is not requested.
+    public let IDTokenNonce: String?
+}
+
+extension LoginResult: Encodable {
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken
+        case scope
+        case userProfile
+        case friendshipStatusChanged
+        case IDTokenNonce
+    }
+
+    /// :nodoc:
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(accessToken, forKey: .accessToken)
+        try container.encodeLoginPermissions(Array(permissions), forKey: .scope)
+        try container.encodeIfPresent(userProfile, forKey: .userProfile)
+        try container.encodeIfPresent(friendshipStatusChanged, forKey: .friendshipStatusChanged)
+        try container.encodeIfPresent(IDTokenNonce, forKey: .IDTokenNonce)
+    }
 }

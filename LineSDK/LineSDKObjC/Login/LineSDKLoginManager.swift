@@ -33,6 +33,10 @@ public class LineSDKLoginManager: NSObject {
     public var isSetupFinished: Bool { return _value.isSetupFinished }
     public var isAuthorized: Bool { return _value.isAuthorized }
     public var isAuthorizing: Bool { return _value.isAuthorizing }
+    public var preferredWebPageLanguage: String? {
+        get { return _value.preferredWebPageLanguage?.rawValue }
+        set { _value.preferredWebPageLanguage = newValue.map { .init(rawValue: $0) } }
+    }
     public func setup(channelID: String, universalLinkURL: URL?) {
         _value.setup(channelID: channelID, universalLinkURL: universalLinkURL)
     }
@@ -52,13 +56,15 @@ public class LineSDKLoginManager: NSObject {
             options: options)
         {
             result in
-            completion(result.value.map { .init($0) }, result.error)
+            result
+                .map(LineSDKLoginResult.init)
+                .match(with: completion)
         }
         return process.map { .init($0) }
     }
     
     public func logout(completionHandler completion: @escaping (Error?) -> Void) {
-        _value.logout { result in completion(result.error) }
+        _value.logout { result in result.matchFailure(with: completion) }
     }
     
     public func application(

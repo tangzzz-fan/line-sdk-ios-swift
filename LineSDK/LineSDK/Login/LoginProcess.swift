@@ -41,6 +41,7 @@ public class LoginProcess {
         let processID: String
         let nonce: String?
         let botPrompt: BotPrompt?
+        let preferredWebPageLanguage: LoginManager.WebPageLanguage?
     }
     
     /// Observes application switching to foreground.
@@ -77,6 +78,7 @@ public class LoginProcess {
     let configuration: LoginConfiguration
     let scopes: Set<LoginPermission>
     let options: LoginManagerOptions
+    let preferredWebPageLanguage: LoginManager.WebPageLanguage?
     
     // Flows of login process. A flow will be `nil` until it is running, so we could tell which one should take
     // responsibility to handle a url callback response.
@@ -104,8 +106,8 @@ public class LoginProcess {
     /// A UUID string of current process. Used to verify with server `state` response.
     let processID: String
     
-    /// A string used to prevent replay attacks. This value is returned in an ID token.
-    let tokenIDNonce: String?
+    /// A string used to prevent replay attacks. This value will be returned in an ID token.
+    let IDTokenNonce: String?
     
     var otp: OneTimePassword!
     
@@ -116,18 +118,20 @@ public class LoginProcess {
         configuration: LoginConfiguration,
         scopes: Set<LoginPermission>,
         options: LoginManagerOptions,
+        preferredWebPageLanguage: LoginManager.WebPageLanguage?,
         viewController: UIViewController?)
     {
         self.configuration = configuration
         self.processID = UUID().uuidString
         self.scopes = scopes
         self.options = options
+        self.preferredWebPageLanguage = preferredWebPageLanguage
         self.presentingViewController = viewController
         
         if scopes.contains(.openID) {
-            tokenIDNonce = UUID().uuidString
+            IDTokenNonce = UUID().uuidString
         } else {
-            tokenIDNonce = nil
+            IDTokenNonce = nil
         }
     }
     
@@ -143,8 +147,9 @@ public class LoginProcess {
                     scopes: self.scopes,
                     otp: otp,
                     processID: self.processID,
-                    nonce: self.tokenIDNonce,
-                    botPrompt: self.options.botPrompt)
+                    nonce: self.IDTokenNonce,
+                    botPrompt: self.options.botPrompt,
+                    preferredWebPageLanguage: self.preferredWebPageLanguage)
                 if self.options.contains(.onlyWebLogin) {
                     self.startWebLoginFlow(parameters)
                 } else {
@@ -218,9 +223,6 @@ public class LoginProcess {
             switch result {
             case .safariViewController:
                 self.webLoginFlow = webLoginFlow
-            case .externalSafari:
-                self.setupAppSwitchingObserver()
-                self.webLoginFlow = webLoginFlow
             case .error(let error):
                 // Starting login flow failed. There is no more
                 // fallback methods or cannot find correct view controller.
@@ -235,7 +237,7 @@ public class LoginProcess {
         webLoginFlow.start(in: presentingViewController)
     }
     
-    func resumeOpenURL(url: URL, sourceApplication: String?) -> Bool {
+    func resumeOpenURL(url: URL) -> Bool {
         
         let isValidUniversalLinkURL = configuration.isValidUniversalLinkURL(url: url)
         let isValidCustomizeURL = configuration.isValidCustomizeURL(url: url)
@@ -244,15 +246,6 @@ public class LoginProcess {
         {
             invokeFailure(error: LineSDKError.authorizeFailed(reason: .callbackURLSchemeNotMatching))
             return false
-        }
-        
-        // For universal link callback, we can skip source application checking.
-        // Just do it for customize URL scheme.
-        if isValidCustomizeURL {
-            guard let sourceApp = sourceApplication, configuration.isValidSourceApplication(appID: sourceApp) else {
-                invokeFailure(error: LineSDKError.authorizeFailed(reason: .invalidSourceApplication))
-                return false
-            }
         }
         
         // It is the callback url we could handle, so the app switching observer should be invalidated.
@@ -349,7 +342,6 @@ class WebLoginFlow: NSObject {
     
     enum Next {
         case safariViewController
-        case externalSafari
         case error(Error)
     }
     
@@ -369,7 +361,10 @@ class WebLoginFlow: NSObject {
         safariViewController.modalPresentationStyle = .overFullScreen
         safariViewController.modalTransitionStyle = .coverVertical
         safariViewController.delegate = self
-        
+        if #available(iOS 11.0, *) {
+            safariViewController.dismissButtonStyle = .cancel
+        }
+
         self.safariViewController = safariViewController
         
         guard let presenting = viewController ?? .topMost else {
@@ -426,10 +421,14 @@ extension String {
 extension URL {
     func appendedLoginQuery(_ flowParameters: LoginProcess.FlowParameters) -> URL {
         let returnUri = String.returnUri(flowParameters)
-        let parameters: [String: Any] = [
+        var parameters: [String: Any] = [
             "returnUri": returnUri,
             "loginChannelId": flowParameters.channelID
         ]
+        if let lang = flowParameters.preferredWebPageLanguage {
+            parameters["ui_locales"] = lang.rawValue
+        }
+
         let encoder = URLQueryEncoder(parameters: parameters)
         return encoder.encoded(for: self)
     }

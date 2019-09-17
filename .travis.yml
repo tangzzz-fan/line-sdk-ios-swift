@@ -1,18 +1,31 @@
 language: objective-c
-osx_image: xcode10.1
 
 addons:
   homebrew:
     packages:
     - carthage
 
-env:
-  matrix:
-    - LANE=sdk_tests
-    - LANE=lint_pod
-    - LANE=lint_carthage
+osx_image: 
+- xcode10.1
+- xcode10.2
 
+env:
+- LANE=sdk_tests SWIFT_VERSION=4.2
+- LANE=sdk_tests SWIFT_VERSION=5.0
+- LANE=lint_pod SWIFT_VERSION=4.2
+- LANE=lint_pod SWIFT_VERSION=5.0
+- LANE=lint_carthage
+
+matrix:
+  exclude:
+    - osx_image: xcode10.1
+      env: LANE=sdk_tests SWIFT_VERSION=5.0
+    - osx_image: xcode10.1
+      env: LANE=lint_pod SWIFT_VERSION=5.0
 cache: bundler
+
+before_install:
+  - gem install bundler -v '2.0.1'
 
 script:
   - bundle exec fastlane $LANE

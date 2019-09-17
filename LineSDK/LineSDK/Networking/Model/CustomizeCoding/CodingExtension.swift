@@ -35,6 +35,13 @@ extension KeyedDecodingContainer {
     }
 }
 
+extension KeyedEncodingContainer {
+    mutating func encodeLoginPermissions(_ permissions: [LoginPermission], forKey key: Key) throws {
+        let scopes = permissions.map { $0.rawValue }.joined(separator: " ")
+        try encode(scopes, forKey: key)
+    }
+}
+
 extension Encodable {
     func toJSON() throws -> Any {
         let data = try JSONEncoder().encode(self)
@@ -83,8 +90,8 @@ extension UIColor {
             self.init(cgColor: color.cgColor)
             return
         }
-        
-        let hexString = String(rgb[String.Index(encodedOffset: 1)...])
+
+        let hexString = String(rgb.dropFirst())
         var hexValue:  UInt32 = 0
         
         guard Scanner(string: hexString).scanHexInt32(&hexValue) else {

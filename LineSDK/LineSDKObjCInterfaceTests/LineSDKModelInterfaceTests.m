@@ -46,6 +46,8 @@
     XCTAssertNotNil([LineSDKLoginPermission birthdate]);
     XCTAssertNotNil([LineSDKLoginPermission address]);
     XCTAssertNotNil([LineSDKLoginPermission realName]);
+
+    XCTAssertEqual([LineSDKLoginPermission permissionsFrom:@"profile email abcd"].count, 3);
 }
 
 - (void)testAccessTokenInterface {
@@ -53,9 +55,9 @@
     XCTAssertNil(token.value);
     XCTAssertNil(token.createdAt);
     XCTAssertNil(token.IDToken);
-    XCTAssertNil(token.refreshToken);
     XCTAssertNil(token.permissions);
     XCTAssertNil(token.expiresAt);
+    XCTAssertNil(token.json);
 }
 
 - (void)testAccessTokenStoreInterface {
@@ -115,6 +117,7 @@
     XCTAssertFalse(manager.isSetupFinished);
     XCTAssertFalse(manager.isAuthorized);
     XCTAssertFalse(manager.isAuthorizing);
+
     [manager setupWithChannelID:@"" universalLinkURL:nil];
     [manager loginWithPermissions:nil
                  inViewController:nil
@@ -136,6 +139,15 @@
     XCTAssertFalse(opened);
     
     XCTAssertNotNil([LineSDKLoginManager sharedManager]);
+}
+
+- (void)testLoginManagerLangSettingInterface {
+    LineSDKLoginManager *manager = [LineSDKLoginManager sharedManager];
+    XCTAssertNil(manager.preferredWebPageLanguage);
+    [manager setPreferredWebPageLanguage:@"zh-Hans"];
+    XCTAssertEqual(manager.preferredWebPageLanguage, @"zh-Hans");
+    manager.preferredWebPageLanguage = nil;
+    XCTAssertNil(manager.preferredWebPageLanguage);
 }
 
 - (void)testHexColorInterface {
@@ -250,6 +262,7 @@
     XCTAssertNil(payload.name);
     XCTAssertNil(payload.picture);
     XCTAssertNil(payload.email);
+    XCTAssertNil(payload.amr);
 }
 
 - (void)testLoginButtonInterface {

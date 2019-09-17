@@ -22,11 +22,19 @@
 import Foundation
 
 struct Log {
-    static func assertionFailure(_ message: @autoclosure () -> String, file: StaticString = #file, line: UInt = #line) {
+    static func assertionFailure(
+        _ message: @autoclosure () -> String,
+        file: StaticString = #file,
+        line: UInt = #line)
+    {
         Swift.assertionFailure("[LineSDK] \(message())", file: file, line: line)
     }
     
-    static func fatalError(_ message: @autoclosure () -> String, file: StaticString = #file, line: UInt = #line) -> Never {
+    static func fatalError(
+        _ message: @autoclosure () -> String,
+        file: StaticString = #file,
+        line: UInt = #line) -> Never
+    {
         Swift.fatalError("[LineSDK] \(message())", file: file, line: line)
     }
     
@@ -40,23 +48,6 @@ struct Log {
 
 /// Possible keys in the `userInfo` property of notifications related to the LINE Platform.
 public struct LineSDKNotificationKey {}
-
-extension UIAlertController {
-    static func presentAlert(in viewController: UIViewController?,
-                             title: String?,
-                             message: String?,
-                             style: UIAlertController.Style = .alert,
-                             actions: [UIAlertAction]) -> Bool
-    {
-        guard let presenting = viewController ?? .topMost else {
-            return false
-        }
-        let alert = UIAlertController(title: title, message: message, preferredStyle: style)
-        actions.forEach(alert.addAction)
-        presenting.present(alert, animated: true, completion: nil)
-        return true
-    }
-}
 
 extension UIApplication {
     func openLINEInAppStore() {

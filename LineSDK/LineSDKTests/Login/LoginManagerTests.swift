@@ -72,6 +72,9 @@ class LoginManagerTests: XCTestCase, ViewControllerCompatibleTest {
             
             XCTAssertTrue(LoginManager.shared.isAuthorized)
             XCTAssertFalse(LoginManager.shared.isAuthorizing)
+
+            // IDTokenNonce should be `nil` when `.openID` not required.
+            XCTAssertNil(result.IDTokenNonce)
             
             try! AccessTokenStore.shared.removeCurrentAccessToken()
             expect.fulfill()
@@ -83,10 +86,54 @@ class LoginManagerTests: XCTestCase, ViewControllerCompatibleTest {
             XCTAssertTrue(LoginManager.shared.isAuthorizing)
             
             let urlString = "\(Constant.thirdPartyAppReturnURL)?code=123&state=\(process.processID)"
-            let handled = process.resumeOpenURL(url: URL(string: urlString)!, sourceApplication: "com.apple.safari")
+            let handled = process.resumeOpenURL(url: URL(string: urlString)!)
             XCTAssertTrue(handled)
         }
         
+        waitForExpectations(timeout: 1, handler: nil)
+    }
+
+    func testLoginActionWithOpenID() {
+        let expect = expectation(description: "\(#file)_\(#line)")
+
+        XCTAssertFalse(LoginManager.shared.isAuthorized)
+        XCTAssertFalse(LoginManager.shared.isAuthorizing)
+
+        let delegateStub = SessionDelegateStub(stubs: [
+            .init(data: PostOTPRequest.successData, responseCode: 200),
+            .init(data: PostExchangeTokenRequest.successData, responseCode: 200),
+            .init(data: GetUserProfileRequest.successData, responseCode: 200)
+        ])
+        Session._shared = Session(
+            configuration: LoginConfiguration.shared,
+            delegate: delegateStub
+        )
+
+        var process: LoginProcess!
+        process = LoginManager.shared.login(permissions: [.profile, .openID], in: setupViewController()) {
+            loginResult in
+            XCTAssertNotNil(loginResult.value)
+
+            let result = loginResult.value!
+
+            // IDTokenNonce should be `nil` when `.openID` not required.
+            XCTAssertNotNil(result.IDTokenNonce)
+            XCTAssertEqual(result.IDTokenNonce, process!.IDTokenNonce)
+
+            try! AccessTokenStore.shared.removeCurrentAccessToken()
+            expect.fulfill()
+        }!
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+
+            XCTAssertFalse(LoginManager.shared.isAuthorized)
+            XCTAssertTrue(LoginManager.shared.isAuthorizing)
+
+            let urlString = "\(Constant.thirdPartyAppReturnURL)?code=123&state=\(process.processID)"
+            let handled = process.resumeOpenURL(url: URL(string: urlString)!)
+            XCTAssertTrue(handled)
+        }
+
         waitForExpectations(timeout: 1, handler: nil)
     }
     
@@ -104,6 +151,29 @@ class LoginManagerTests: XCTestCase, ViewControllerCompatibleTest {
         }
         waitForExpectations(timeout: 1, handler: nil)
     }
-    
+
+    func testRefreshNotOverwriteStoredIDToken() {
+
+        let expect = expectation(description: "\(#file)_\(#line)")
+
+        setupTestToken()
+        XCTAssertTrue(LoginManager.shared.isAuthorized)
+        XCTAssertNotNil(AccessTokenStore.shared.current?.IDToken)
+
+        let delegateStub = SessionDelegateStub(
+            stubs: [.init(data: PostRefreshTokenRequest.successData, responseCode: 200)])
+        Session._shared = Session(
+            configuration: LoginConfiguration.shared,
+            delegate: delegateStub
+        )
+
+        API.refreshAccessToken { result in
+            XCTAssertNotNil(AccessTokenStore.shared.current?.IDToken)
+            expect.fulfill()
+        }
+
+        waitForExpectations(timeout: 1, handler: nil)
+    }
+
 }
 

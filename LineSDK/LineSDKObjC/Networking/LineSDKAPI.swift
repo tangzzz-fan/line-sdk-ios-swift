@@ -30,23 +30,15 @@ public class LineSDKAPI: NSObject {
     public static func refreshAccessToken(
         completionHandler completion: @escaping (LineSDKAccessToken?, Error?) -> Void)
     {
-        refreshAccessToken(nil, completionHandler: completion)
+        refreshAccessToken(callbackQueue: .currentMainOrAsync, completionHandler: completion)
     }
     
     public static func refreshAccessToken(
-        _ refreshToken: String?,
-        completionHandler completion: @escaping (LineSDKAccessToken?, Error?) -> Void)
-    {
-        refreshAccessToken(refreshToken, callbackQueue: .currentMainOrAsync, completionHandler: completion)
-    }
-    
-    public static func refreshAccessToken(
-        _ refreshToken: String?,
         callbackQueue queue: LineSDKCallbackQueue,
         completionHandler completion: @escaping (LineSDKAccessToken?, Error?) -> Void)
     {
-        API.refreshAccessToken(refreshToken, callbackQueue: queue.unwrapped) { result in
-            completion(result.value.map { .init($0) }, result.error)
+        API.refreshAccessToken(callbackQueue: queue.unwrapped) { result in
+            result.map(LineSDKAccessToken.init).match(with: completion)
         }
     }
     
@@ -70,7 +62,7 @@ public class LineSDKAPI: NSObject {
         completionHandler completion: @escaping (Error?) -> Void)
     {
         API.revokeAccessToken(token, callbackQueue: queue.unwrapped) { result in
-            completion(result.error)
+            result.matchFailure(with: completion)
         }
     }
     
@@ -94,7 +86,7 @@ public class LineSDKAPI: NSObject {
         completionHandler completion: @escaping (LineSDKAccessTokenVerifyResult?, Error?) -> Void)
     {
         API.verifyAccessToken(token, callbackQueue: queue.unwrapped) { result in
-            completion(result.value.map { .init($0) }, result.error)
+            result.map(LineSDKAccessTokenVerifyResult.init).match(with: completion)
         }
     }
     
@@ -110,7 +102,7 @@ public class LineSDKAPI: NSObject {
         completionHandler completion: @escaping (LineSDKUserProfile?, Error?) -> Void)
     {
         API.getProfile(callbackQueue: queue.unwrapped) { result in
-            completion(result.value.map { .init($0) }, result.error)
+            result.map(LineSDKUserProfile.init).match(with: completion)
         }
     }
     
@@ -137,7 +129,7 @@ public class LineSDKAPI: NSObject {
         completionHandler completion: @escaping (LineSDKGetFriendsResponse?, Error?) -> Void)
     {
         API.getFriends(sort: sort.unwrapped, pageToken: pageToken, callbackQueue: queue.unwrapped) { result in
-            completion(result.value.map { .init($0) }, result.error)
+            result.map(LineSDKGetFriendsResponse.init).match(with: completion)
         }
     }
     
@@ -155,7 +147,7 @@ public class LineSDKAPI: NSObject {
         completionHandler completion: @escaping (LineSDKGetApproversInFriendsResponse?, Error?) -> Void)
     {
         API.getApproversInFriends(pageToken: pageToken, callbackQueue: queue.unwrapped) { result in
-            completion(result.value.map { .init($0) }, result.error)
+            result.map(LineSDKGetApproversInFriendsResponse.init).match(with: completion)
         }
     }
     
@@ -173,7 +165,7 @@ public class LineSDKAPI: NSObject {
         completionHandler completion: @escaping (LineSDKGetGroupsResponse?, Error?) -> Void)
     {
         API.getGroups(pageToken: pageToken, callbackQueue: queue.unwrapped) { result in
-            completion(result.value.map { .init($0) }, result.error)
+            result.map(LineSDKGetGroupsResponse.init).match(with: completion)
         }
     }
     
@@ -194,7 +186,7 @@ public class LineSDKAPI: NSObject {
         completionHandler completion: @escaping (LineSDKGetApproversInGroupResponse?, Error?) -> Void)
     {
         API.getApproversInGroup(groupID: groupID, pageToken: pageToken, callbackQueue: queue.unwrapped) { result in
-            completion(result.value.map { .init($0) }, result.error)
+            result.map(LineSDKGetApproversInGroupResponse.init).match(with: completion)
         }
     }
     
@@ -214,7 +206,7 @@ public class LineSDKAPI: NSObject {
         completionHandler completion: @escaping (LineSDKPostSendMessagesResponse?, Error?) -> Void)
     {
         API.sendMessages(messages.map { $0.unwrapped }, to: chatID, callbackQueue: queue.unwrapped) { result in
-            completion(result.value.map { .init($0) }, result.error)
+            result.map(LineSDKPostSendMessagesResponse.init).match(with: completion)
         }
     }
     
@@ -230,8 +222,7 @@ public class LineSDKAPI: NSObject {
         completionHandler completion: @escaping (LineSDKGetBotFriendshipStatusResponse?, Error?) -> Void)
     {
         API.getBotFriendshipStatus(callbackQueue: queue.unwrapped) { result in
-            completion(result.value.map { .init($0) }, result.error)
+            result.map(LineSDKGetBotFriendshipStatusResponse.init).match(with: completion)
         }
     }
 }
-

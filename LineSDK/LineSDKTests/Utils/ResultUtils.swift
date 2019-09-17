@@ -1,5 +1,6 @@
+
 //
-//  LineSDKGetBotFriendshipStatusResponse.swift
+//  ResultUtils.swift
 //
 //  Copyright (c) 2016-present, LINE Corporation. All rights reserved.
 //
@@ -19,15 +20,23 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
-#if !LineSDKCocoaPods
+import Foundation
 import LineSDK
-#endif
 
-@objcMembers
-public class LineSDKGetBotFriendshipStatusResponse: NSObject {
-    let _value: GetBotFriendshipStatusRequest.Response
-    init(_ value: GetBotFriendshipStatusRequest.Response) { _value = value }
-    public var friendFlag: Bool { return _value.friendFlag }
+// Make tests happier with old Result type
+extension LineSDK.Result {
 
-    public var json: String? { return toJSON(_value) }
+    var value: Success? {
+        switch self {
+        case .success(let success): return success
+        case .failure: return nil
+        }
+    }
+
+    var error: Failure? {
+        switch self {
+        case .success: return nil
+        case .failure(let failure): return failure
+        }
+    }
 }

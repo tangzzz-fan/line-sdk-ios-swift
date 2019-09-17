@@ -24,10 +24,11 @@ import Foundation
 /// Represents a login manager. You can set up the LINE SDK configuration, log in and log out the user with the
 /// LINE authorization flow, and check the authorization status.
 public class LoginManager {
-    
+
     let lock = NSLock()
     
-    /// The shared instance of the login manager. Always use this instance to interact with the login process of the LINE SDK.
+    /// The shared instance of the login manager. Always use this instance to interact with the login process of
+    /// the LINE SDK.
     public static let shared = LoginManager()
     
     /// The current login process. A non-`nil` value indicates that there is an ongoing process and the LINE SDK
@@ -54,6 +55,16 @@ public class LoginManager {
     public var isAuthorizing: Bool {
         return currentProcess != nil
     }
+
+    /// Sets the preferred language used when logging in with the web authorization flow.
+    ///
+    /// If not set, the web authentication flow shows the login page in the user's device language, or falls
+    /// back to English. Once set, the web page will be displayed in the preferred language.
+    ///
+    /// - Note:
+    ///   This property does not affect the preferred language when LINE is used for authorization.
+    ///   LINE and the login screen are always displayed in the user's device language.
+    public var preferredWebPageLanguage: WebPageLanguage? = nil
     
     /// A flag to prevent setup multiple times
     var setup = false
@@ -139,6 +150,7 @@ public class LoginManager {
             configuration: LoginConfiguration.shared,
             scopes: permissions,
             options: options,
+            preferredWebPageLanguage: preferredWebPageLanguage,
             viewController: viewController)
         process.start()
         process.onSucceed.delegate(on: self) { [unowned process] (self, result) in
@@ -175,22 +187,24 @@ public class LoginManager {
         let group = DispatchGroup()
         
         var profile: UserProfile?
-        var webToken: JWK?
+
+        var providerMetadata: DiscoveryDocument.ResolvedProviderMetadata?
+
         // Any possible errors will be held here.
         var errors: [Error] = []
         
         if token.permissions.contains(.profile) {
             // We need to pass token since it is not stored in keychain yet.
             getUserProfile(with: token, in: group) { result in
-                profile = result.value
-                result.error.map { errors.append($0) }
+                do { profile = try result.get() }
+                catch { errors.append(error) }
             }
         }
         
         if token.permissions.contains(.openID) {
-            getJWK(for: token, in: group) { result in
-                webToken = result.value
-                result.error.map { errors.append($0) }
+            getProviderMetadata(for: token, in: group) { result in
+                do { providerMetadata = try result.get() }
+                catch { errors.append(error) }
             }
         }
 
@@ -201,9 +215,14 @@ public class LoginManager {
                 return
             }
             
-            if let key = webToken {
+            if let providerMetadata = providerMetadata {
                 do {
-                    try self.verifyIDToken(token.IDToken!, key: key, process: process, userID: profile?.userID)
+                    try self.verifyIDToken(
+                        token.IDToken!,
+                        providerMetadata: providerMetadata,
+                        process: process,
+                        userID: profile?.userID
+                    )
                 } catch {
                     if let cryptoError = error as? CryptoError {
                         completion(.failure(.authorizeFailed(reason: .cryptoError(error: cryptoError))))
@@ -222,17 +241,18 @@ public class LoginManager {
                     accessToken: token,
                     permissions: Set(token.permissions),
                     userProfile: profile,
-                    friendshipStatusChanged: response.friendshipStatusChanged)
+                    friendshipStatusChanged: response.friendshipStatusChanged,
+                    IDTokenNonce: process.IDTokenNonce)
             }
             completion(result)
         }
     }
     
-    /// Logs out the current user by revoking the access token.
+    /// Logs out the current user by revoking the refresh token and all its corresponding access tokens.
     ///
     /// - Parameter completion: The completion closure to be invoked when the logout action is finished.
     public func logout(completionHandler completion: @escaping (Result<(), LineSDKError>) -> Void) {
-        API.revokeAccessToken(completionHandler: completion)
+        API.revokeRefreshToken(completionHandler: completion)
     }
     
     /// Asks this `LoginManager` object to handle a URL callback from either the LINE app or the web login flow.
@@ -254,8 +274,7 @@ public class LoginManager {
         guard let url = url else { return false }
         guard let currentProcess = currentProcess else { return false }
         
-        let sourceApplication = options[.sourceApplication] as? String
-        return currentProcess.resumeOpenURL(url: url, sourceApplication: sourceApplication)
+        return currentProcess.resumeOpenURL(url: url)
     }
 }
 
@@ -273,10 +292,10 @@ extension LoginManager {
         }
     }
     
-    func getJWK(
+    func getProviderMetadata(
         for token: AccessToken,
         in group: DispatchGroup,
-        handler: @escaping (Result<JWK, LineSDKError>) -> Void)
+        handler: @escaping (Result<DiscoveryDocument.ResolvedProviderMetadata, LineSDKError>) -> Void)
     {
         group.enter()
         // We need a valid ID Token existing to continue.
@@ -308,7 +327,9 @@ extension LoginManager {
                             group.leave()
                             return
                         }
-                        handler(.success(key))
+                        handler(
+                            .success(DiscoveryDocument.ResolvedProviderMetadata(issuer: document.issuer, jwk: key))
+                        )
                         group.leave()
                     case .failure(let err):
                         handler(.failure(err))
@@ -322,12 +343,15 @@ extension LoginManager {
         }
     }
     
-    func verifyIDToken(_ token: JWT, key: JWK, process: LoginProcess, userID: String?) throws {
-        
-        try token.verify(with: key)
+    func verifyIDToken(
+        _ token: JWT,
+        providerMetadata: DiscoveryDocument.ResolvedProviderMetadata,
+        process: LoginProcess, userID: String?) throws
+    {
+        try token.verify(with: providerMetadata.jwk)
         
         let payload = token.payload
-        try payload.verify(keyPath: \.issuer, expected: "https://access.line.me")
+        try payload.verify(keyPath: \.issuer, expected: providerMetadata.issuer)
         
         if let userID = userID {
             try payload.verify(keyPath: \.subject, expected: userID)
@@ -338,6 +362,57 @@ extension LoginManager {
         let allowedClockSkew: TimeInterval = 5 * 60
         try payload.verify(keyPath: \.expiration, laterThan: now.addingTimeInterval(-allowedClockSkew))
         try payload.verify(keyPath: \.issueAt, earlierThan: now.addingTimeInterval(allowedClockSkew))
-        try payload.verify(keyPath: \.nonce, expected: process.tokenIDNonce!)
+        try payload.verify(keyPath: \.nonce, expected: process.IDTokenNonce!)
+    }
+}
+
+extension LoginManager {
+    /// Represents the language used in web page.
+    public struct WebPageLanguage {
+        public let rawValue: String
+
+        /// Creates a web page language with a given raw string language code value.
+        ///
+        /// - Parameter rawValue: The value represents the language code.
+        public init(rawValue: String) {
+            self.rawValue = rawValue
+        }
+
+        /// The Arabic language.
+        public static let arabic = WebPageLanguage(rawValue: "ar")
+        /// The German language.
+        public static let german = WebPageLanguage(rawValue: "de")
+        /// The English language.
+        public static let english = WebPageLanguage(rawValue: "en")
+        /// The Spanish language.
+        public static let spanish = WebPageLanguage(rawValue: "es")
+        /// The French language.
+        public static let french = WebPageLanguage(rawValue: "fr")
+        /// The Indonesian language.
+        public static let indonesian = WebPageLanguage(rawValue: "id")
+        /// The Italian language.
+        public static let italian = WebPageLanguage(rawValue: "it")
+        /// The Japanese language.
+        public static let japanese = WebPageLanguage(rawValue: "jp")
+        /// The Korean language.
+        public static let korean = WebPageLanguage(rawValue: "ko")
+        /// The Malay language.
+        public static let malay = WebPageLanguage(rawValue: "ms")
+        /// The Brazilian Portuguese language.
+        public static let portugueseBrazilian = WebPageLanguage(rawValue: "pt-BR")
+        /// The European Portuguese language.
+        public static let portugueseEuropean = WebPageLanguage(rawValue: "pt-PT")
+        /// The Russian language.
+        public static let russian = WebPageLanguage(rawValue: "ru")
+        /// The Thai language.
+        public static let thai = WebPageLanguage(rawValue: "th")
+        /// The Turkish language.
+        public static let turkish = WebPageLanguage(rawValue: "tr")
+        /// The Vietnamese language.
+        public static let vietnamese = WebPageLanguage(rawValue: "vi")
+        /// The Simplified Chinese language.
+        public static let chineseSimplified = WebPageLanguage(rawValue: "zh-Hans")
+        /// The Traditional Chinese language.
+        public static let chineseTraditional = WebPageLanguage(rawValue: "zh-Hant")
     }
 }

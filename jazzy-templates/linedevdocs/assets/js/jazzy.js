@@ -8,11 +8,30 @@ if (navigator.userAgent.match(/xcode/i)) {
   window.jazzy.docset = true
 }
 
-// On doc load, toggle the URL hash discussion if present
+// On doc load, toggle the URL hash discussion if present and remove "last updated" from pages other than index.html
 $(document).ready(function() {
   if (!window.jazzy.docset) {
     var linkToHash = $('a[href="' + window.location.hash +'"]');
     linkToHash.trigger("click");
+  }
+  
+  // If the file path includes index.html, add last updated to prevent git file updates 
+  var filePath = location.pathname;
+  if (filePath.includes("index.html") || filePath.endsWith("/ios-sdk-swift/")) {
+    const footerElement = document.getElementsByClassName("footer")[0];
+
+    // Get the last updated date and format it
+    let lastUpdatedTimeStamp = new Date(document.lastModified);
+    const lastModifiedYear = lastUpdatedTimeStamp.getFullYear();
+    const lastModifiedMonth = lastUpdatedTimeStamp.getMonth() + 1;
+    const lastModifiedDate = lastUpdatedTimeStamp.getDate();
+    lastUpdatedTimeStamp = lastModifiedYear + "-" + lastModifiedMonth + "-" + lastModifiedDate;
+
+    // Append the formatted timestamp to the copyright text
+    const lastUpdated = " (Last updated: " + lastUpdatedTimeStamp + ")";
+    const dateSpan = document.createElement('span');
+    dateSpan.innerHTML = lastUpdated;
+    footerElement.childNodes[1].appendChild(dateSpan);
   }
 });
 
