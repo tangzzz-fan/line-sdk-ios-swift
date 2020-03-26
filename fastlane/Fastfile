@@ -3,7 +3,11 @@ default_platform(:ios)
 platform :ios do
 
   before_all do
-    xcversion(version: "~> 10.1")
+    begin
+        xcversion(version: "~> 11.3.0")
+    rescue => ex
+        UI.error("Failed when switching to Xcode version: #{ex}")
+    end
   end
 
   desc "Switch to Beta environment"
@@ -76,27 +80,26 @@ platform :ios do
         version_number: target_version,
         xcodeproj: "LineSDK/LineSDK.xcodeproj"
     )
-  
-    # Increase version numbers in resource info plist.
-    plistbuddy = "/usr/libexec/PlistBuddy"
-    Action.sh("#{plistbuddy} -c 'Set :CFBundleShortVersionString #{target_version}' ../LineSDK/LineSDK/Resource.bundle/Info.plist")
-    Action.sh("#{plistbuddy} -c 'Set :CFBundleVersion #{number_of_commits}' ../LineSDK/LineSDK/Resource.bundle/Info.plist")
 
+    bump_constant_version(version: target_version)
+    bump_reference_top_version(version: target_version)
     version_bump_podspec(path: "LineSDKSwift.podspec", version_number: target_version)
     
     release_content = read_changelog(excluded_markdown_elements: [])
-
     change_log(version: target_version)
-    
-    git_commit_all(message: "Bump version to #{target_version}") 
-    Actions.sh("git tag -u #{ENV["GPG_KEY_ID"]} #{target_version} -m ''")
-    push_to_git_remote
 
+    git_commit_all(message: "Bump version to #{target_version}")
+    Actions.sh("git tag -u #{ENV["GPG_KEY_ID"]} #{target_version} -m ''")
+
+    binary_frameworks = xcframework(version: target_version)
+    
+    push_to_git_remote
     set_github_release(
       repository_name: "line/line-sdk-ios-swift",
       api_token: ENV["GITHUB_TOKEN"],
       name: target_version,
       tag_name: target_version,
+      upload_assets: binary_frameworks,
       description: release_content
     )
 
@@ -123,5 +126,40 @@ platform :ios do
   lane :ensure_latest_carthage do
     Actions.sh("brew update")
     Actions.sh("brew outdated carthage || brew upgrade carthage")
+  end
+
+  lane :bump_constant_version do |options|
+    target_version = options[:version]
+    replacing = "public static let SDKVersion = \"#{target_version}\""
+    regex = "public static let SDKVersion = .*"
+    constant_file = "../LineSDK/LineSDK/Utils/Constant.swift"
+    Action.sh("sed -e 's/#{regex}/#{replacing}/g' #{constant_file} | tee #{constant_file}")
+  end
+
+  lane :bump_reference_top_version do |options|
+    target_version = options[:version]
+    target_version_to_minor = target_version.split(".")[0...-1].join(".")
+    lines = File.readlines("../REFERENCETOP.md")
+    lines[0] = "# LINE SDK v#{target_version_to_minor} for iOS Swift\n"
+    File.open("../REFERENCETOP.md", "w") { |f| f.write(lines.join) }
+  end
+
+  desc "Create binary frameworks with the `xcframework` format under the `build/` folder."
+  lane :xcframework do |options|
+    target_version = options[:version]
+    output_path = "build"
+
+    FileUtils.rm_rf "../#{output_path}"
+
+    artifact_paths = [
+      create_xcframework(version: target_version, scheme: "LineSDK", output: output_path),
+      create_xcframework(version: target_version, scheme: "LineSDKObjCBinary", product_name: "LineSDKObjC", output: output_path),
+    ]
+
+    zipped_files = []
+    artifact_paths.each do |path|
+      zipped_files << zip(path: path)
+    end
+    zipped_files
   end
 end

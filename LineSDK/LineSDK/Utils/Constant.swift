@@ -24,16 +24,10 @@ import Foundation
 /// Constants used in the LINE SDK.
 public struct Constant {
     
+    // This version number is bumped by `bump_constant_version` lane when releasing a new version.
+    // If you change the name or location of this variable, also update the lane in the Fastfile.
     /// The version of the current LINE SDK.
-    public static let SDKVersion: String = {
-        let bundle = Bundle.frameworkBundle
-        guard let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String else {
-            Log.fatalError("SDK resource bundle cannot be loaded, " +
-                           "please verify your installation is not corrupted and try to reinstall LineSDK.")
-        }
-        
-        return version
-    }()
+    public static let SDKVersion = "5.5.1"
     
     static var SDKVersionString: String {
         return "LINE SDK iOS v\(SDKVersion)"
@@ -53,17 +47,4 @@ public struct Constant {
     static var lineAppAuthURLv2: URL {
         return URL(string: "\(Constant.lineAuthV2Scheme)://authorize/")!
     }
-}
-
-extension Bundle {
-    static let frameworkBundle: Bundle = {
-        let frameworkBundle = Bundle(for: LoginManager.self)
-        guard let path = frameworkBundle.path(forResource: "Resource", ofType: "bundle"),
-            let bundle = Bundle(path: path) else
-        {
-            Log.fatalError("SDK resource bundle cannot be found, " +
-                           "please verify your installation is not corrupted and try to reinstall LineSDK.")
-        }
-        return bundle
-    }()
 }

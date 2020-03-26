@@ -20,6 +20,7 @@
 //
 
 // Tests in this file should only compile but not run, since it will send an actual request.
+// This test case just ensures we can compile and use these interfaces in ObjC.
 
 #import <XCTest/XCTest.h>
 @import LineSDKObjC;
@@ -31,25 +32,34 @@
 @implementation LineSDKAPIInterfaceTests
 
 - (void)_testRefreshAccessTokenInterface {
-    [LineSDKAPI refreshAccessTokenWithCompletionHandler:^(LineSDKAccessToken * token, NSError * error) {}];
-    [LineSDKAPI refreshAccessTokenWithCallbackQueue:[LineSDKCallbackQueue asyncMain]
+    [LineSDKAuthAPI refreshAccessTokenWithCompletionHandler:^(LineSDKAccessToken * token, NSError * error) {}];
+    [LineSDKAuthAPI refreshAccessTokenWithCallbackQueue:[LineSDKCallbackQueue asyncMain]
                                   completionHandler:^(LineSDKAccessToken * token, NSError * error) {}];
 }
 
 - (void)_testRevokeAccessTokenInterface {
-    [LineSDKAPI revokeAccessTokenWithCompletionHandler:^(NSError * error) {}];
-    [LineSDKAPI revokeAccessToken:nil
+    [LineSDKAuthAPI revokeAccessTokenWithCompletionHandler:^(NSError * error) {}];
+    [LineSDKAuthAPI revokeAccessToken:nil
                 completionHandler:^(NSError * error) {}];
-    [LineSDKAPI revokeAccessToken:nil
+    [LineSDKAuthAPI revokeAccessToken:nil
+                    callbackQueue:[LineSDKCallbackQueue asyncMain]
+                completionHandler:^(NSError * error) {}];
+}
+
+- (void)_testRevokeRefreshTokenInterface {
+    [LineSDKAuthAPI revokeRefreshTokenWithCompletionHandler:^(NSError * error) {}];
+    [LineSDKAuthAPI revokeRefreshToken:nil
+                completionHandler:^(NSError * error) {}];
+    [LineSDKAuthAPI revokeRefreshToken:nil
                     callbackQueue:[LineSDKCallbackQueue asyncMain]
                 completionHandler:^(NSError * error) {}];
 }
 
 - (void)_testVerifyAccessTokenInterface {
-    [LineSDKAPI verifyAccessTokenWithCompletionHandler:^(LineSDKAccessTokenVerifyResult *result, NSError * error) {}];
-    [LineSDKAPI verifyAccessToken:nil
+    [LineSDKAuthAPI verifyAccessTokenWithCompletionHandler:^(LineSDKAccessTokenVerifyResult *result, NSError * error) {}];
+    [LineSDKAuthAPI verifyAccessToken:nil
                 completionHandler:^(LineSDKAccessTokenVerifyResult *result, NSError * error) {}];
-    [LineSDKAPI verifyAccessToken:nil
+    [LineSDKAuthAPI verifyAccessToken:nil
                     callbackQueue:[LineSDKCallbackQueue asyncMain]
                 completionHandler:^(LineSDKAccessTokenVerifyResult *result, NSError * error) {}];
 }
@@ -60,7 +70,7 @@
                           completionHandler:^(LineSDKUserProfile *result, NSError * error) {}];
 }
 
-- (void)_testGetFriendsInterfale {
+- (void)_testGetFriendsInterface {
     [LineSDKAPI getFriendsWithPageToken:nil
                       completionHandler:^(LineSDKGetFriendsResponse *result, NSError *error) {}];
     [LineSDKAPI getFriendsWithSort:LineSDKGetFriendsRequestSortName
@@ -109,12 +119,47 @@
            completionHandler:^(LineSDKPostSendMessagesResponse *response, NSError *error) {}];
 }
 
+- (void)_testMultiSendMessagesInterface {
+    LineSDKTextMessage *message = [[LineSDKTextMessage alloc] initWithText:@"hello" sender:nil];
+    NSArray<NSString *> *userIDs = @[@"123", @"456"];
+
+    [LineSDKAPI multiSendMessages:@[message]
+                               to:userIDs
+                completionHandler:^(LineSDKPostMultisendMessagesResponse *response, NSError *error) {}];
+    [LineSDKAPI multiSendMessages:@[message]
+                               to:userIDs
+                    callbackQueue:[LineSDKCallbackQueue asyncMain]
+                completionHandler:^(LineSDKPostMultisendMessagesResponse *response, NSError *error) {}];
+
+}
+
 - (void)_testGetBotFriendshipInterface {
     [LineSDKAPI
      getBotFriendshipStatusWithCompletionHandler:^(LineSDKGetBotFriendshipStatusResponse *response, NSError *error) {}];
     [LineSDKAPI
      getBotFriendshipStatusWithCallbackQueue:[LineSDKCallbackQueue asyncMain]
                        completionHandler:^(LineSDKGetBotFriendshipStatusResponse *response, NSError *error) {}];
+}
+
+- (void)_testGetMessageSendingOneTimeTokenInterface {
+    [LineSDKAPI getMessageSendingOneTimeTokenWithUserIDs:@[@"123", @"456"]
+                                        completionHander:^(LineSDKMessageSendingToken *token, NSError *error) {}];
+    [LineSDKAPI getMessageSendingOneTimeTokenWithUserIDs:@[@"123", @"456"]
+                                           callbackQueue:[LineSDKCallbackQueue asyncMain]
+                                        completionHander:^(LineSDKMessageSendingToken *token, NSError *error) {}];
+}
+
+- (void)_testMultiSendMessageWithMessageTokenInterface {
+    LineSDKTextMessage *message = [[LineSDKTextMessage alloc] initWithText:@"hello" sender:nil];
+    LineSDKMessageSendingToken *token = nil;
+
+    [LineSDKAPI multiSendMessages:@[message]
+                 withMessageToken:token
+                completionHandler:^(NSError *error) {}];
+    [LineSDKAPI multiSendMessages:@[message]
+                 withMessageToken:token
+                    callbackQueue:[LineSDKCallbackQueue asyncMain]
+                completionHandler:^(NSError *error) {}];
 }
 
 @end

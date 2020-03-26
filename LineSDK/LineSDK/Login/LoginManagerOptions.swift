@@ -21,7 +21,10 @@
 
 import Foundation
 
+/// - Warning: Deprecated. Use `LoginManager.Parameters` type instead.
+///
 /// Represents options for logging in to the LINE Platform using the `LoginManager` class.
+@available(*, deprecated, message: "Use `LoginManager.Parameters` type instead.")
 public struct LoginManagerOptions: OptionSet {
     
     /// The raw value of an option.
@@ -34,19 +37,28 @@ public struct LoginManagerOptions: OptionSet {
         self.rawValue = rawValue
     }
     
+    /// - Warning: Deprecated. Use `LoginManager.Parameters.onlyWebLogin` instead.
+    ///
     /// Uses the web authentication flow instead of the LINE app-to-app authentication flow.
+    @available(*, deprecated, message: "Use `LoginManager.Parameters.onlyWebLogin` instead.")
     public static let onlyWebLogin = LoginManagerOptions(rawValue: 1 << 0)
     
+    /// - Warning: Deprecated. Use `LoginManager.Parameters.botPromptStyle` instead.
+    ///
     /// Includes an option to add a bot as friend on the consent screen. If `.botPromptNormal` and
     /// `.botPromptAggressive` are set at the same time, `.botPromptAggressive` will be used.
+    @available(*, deprecated, message: "Use `LoginManager.Parameters.botPromptStyle` instead.")
     public static let botPromptNormal = LoginManagerOptions(rawValue: 1 << 1)
     
+    /// - Warning: Deprecated. Use `LoginManager.Parameters.botPromptStyle` instead.
+    ///
     /// Opens a new screen to add a bot as a friend after the user agrees to the permissions on the consent
     /// screen. If `.botPromptNormal` and `.botPromptAggressive` is set at the same time,
     /// `.botPromptAggressive` will be used.
+    @available(*, deprecated, message: "Use `LoginManager.Parameters.botPromptStyle` instead.")
     public static let botPromptAggressive = LoginManagerOptions(rawValue: 1 << 2)
     
-    var botPrompt: LoginProcess.BotPrompt? {
+    var botPrompt: LoginManager.BotPrompt? {
         if contains(.botPromptAggressive) { return .aggressive }
         if contains(.botPromptNormal) { return .normal }
         return nil

@@ -27,20 +27,14 @@ import SafariServices
 /// login flows will run serially. If a flow logs in the user successfully, subsequent flows will not be
 /// executed.
 public class LoginProcess {
-    
-    enum BotPrompt: String {
-        case normal
-        case aggressive
-    }
-    
     struct FlowParameters {
         let channelID: String
         let universalLinkURL: URL?
         let scopes: Set<LoginPermission>
-        let otp: OneTimePassword
+        let pkce: PKCE
         let processID: String
         let nonce: String?
-        let botPrompt: BotPrompt?
+        let botPrompt: LoginManager.BotPrompt?
         let preferredWebPageLanguage: LoginManager.WebPageLanguage?
     }
     
@@ -77,8 +71,7 @@ public class LoginProcess {
     
     let configuration: LoginConfiguration
     let scopes: Set<LoginPermission>
-    let options: LoginManagerOptions
-    let preferredWebPageLanguage: LoginManager.WebPageLanguage?
+    let parameters: LoginManager.Parameters
     
     // Flows of login process. A flow will be `nil` until it is running, so we could tell which one should take
     // responsibility to handle a url callback response.
@@ -103,62 +96,57 @@ public class LoginProcess {
     
     weak var presentingViewController: UIViewController?
     
-    /// A UUID string of current process. Used to verify with server `state` response.
+    /// A random piece of data for current process. Used to verify with server `state` response.
     let processID: String
     
     /// A string used to prevent replay attacks. This value will be returned in an ID token.
     let IDTokenNonce: String?
     
-    var otp: OneTimePassword!
-    
+    let pkce: PKCE
+
     let onSucceed = Delegate<(token: AccessToken, response: LoginProcessURLResponse), Void>()
     let onFail = Delegate<Error, Void>()
     
     init(
         configuration: LoginConfiguration,
         scopes: Set<LoginPermission>,
-        options: LoginManagerOptions,
-        preferredWebPageLanguage: LoginManager.WebPageLanguage?,
+        parameters: LoginManager.Parameters,
         viewController: UIViewController?)
     {
         self.configuration = configuration
-        self.processID = UUID().uuidString
+        self.processID = Data.randomData(bytesCount: 32).base64URLEncoded
+        self.pkce = PKCE()
         self.scopes = scopes
-        self.options = options
-        self.preferredWebPageLanguage = preferredWebPageLanguage
+        self.parameters = parameters
         self.presentingViewController = viewController
         
         if scopes.contains(.openID) {
-            IDTokenNonce = UUID().uuidString
+            IDTokenNonce = self.parameters.IDTokenNonce ?? Data.randomData(bytesCount: 32).base64URLEncoded
         } else {
             IDTokenNonce = nil
         }
     }
     
     func start() {
-        let otpRequest = PostOTPRequest(channelID: configuration.channelID)
-        Session.shared.send(otpRequest) { result in
-            switch result {
-            case .success(let otp):
-                self.otp = otp
-                let parameters = FlowParameters(
-                    channelID: self.configuration.channelID,
-                    universalLinkURL: self.configuration.universalLinkURL,
-                    scopes: self.scopes,
-                    otp: otp,
-                    processID: self.processID,
-                    nonce: self.IDTokenNonce,
-                    botPrompt: self.options.botPrompt,
-                    preferredWebPageLanguage: self.preferredWebPageLanguage)
-                if self.options.contains(.onlyWebLogin) {
-                    self.startWebLoginFlow(parameters)
-                } else {
-                    self.startAppUniversalLinkFlow(parameters)
-                }
-            case .failure(let error):
-                self.invokeFailure(error: error)
-            }
+        let parameters = FlowParameters(
+            channelID: self.configuration.channelID,
+            universalLinkURL: self.configuration.universalLinkURL,
+            scopes: self.scopes,
+            pkce: self.pkce,
+            processID: self.processID,
+            nonce: self.IDTokenNonce,
+            botPrompt: self.parameters.botPromptStyle,
+            preferredWebPageLanguage: self.parameters.preferredWebPageLanguage)
+        #if targetEnvironment(macCatalyst)
+        // On macCatalyst, we only support web login
+        self.startWebLoginFlow(parameters)
+        #else
+        if self.parameters.onlyWebLogin {
+            self.startWebLoginFlow(parameters)
+        } else {
+            self.startAppUniversalLinkFlow(parameters)
         }
+        #endif
     }
     
     /// Stops the login process. The login process will fail with a `.forceStopped` error.
@@ -238,7 +226,7 @@ public class LoginProcess {
     }
     
     func resumeOpenURL(url: URL) -> Bool {
-        
+
         let isValidUniversalLinkURL = configuration.isValidUniversalLinkURL(url: url)
         let isValidCustomizeURL = configuration.isValidCustomizeURL(url: url)
         
@@ -259,13 +247,18 @@ public class LoginProcess {
         // So as a workaround, we need wait for a while before continuing.
         //
         // ref: https://github.com/AFNetworking/AFNetworking/issues/4279
+        //
+        // https://github.com/AFNetworking/AFNetworking/issues/4279#issuecomment-447108981
+        // It seems that plan A in the comment above also works great (even when the background execution time
+        // expired). But I cannot explain why the `URLSession` can retry the request even when background task ends.
+        // Maybe it is some internal implementation. Delay the request now works fine so we choose it as a workaround.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             do {
                 let response = try LoginProcessURLResponse(from: url, validatingWith: self.processID)
                 let tokenExchangeRequest = PostExchangeTokenRequest(
                     channelID: self.configuration.channelID,
                     code: response.requestToken,
-                    otpValue: self.otp.otp,
+                    codeVerifier: self.pkce.codeVerifier,
                     redirectURI: Constant.thirdPartyAppReturnURL,
                     optionalRedirectURI: self.configuration.universalLinkURL?.absoluteString)
                 Session.shared.send(tokenExchangeRequest) { tokenResult in
@@ -278,7 +271,7 @@ public class LoginProcess {
                 self.invokeFailure(error: error)
             }
         }
-        
+
         return true
     }
     
@@ -383,8 +376,12 @@ class WebLoginFlow: NSObject {
 
 extension WebLoginFlow: SFSafariViewControllerDelegate {
     func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
+        // macCatalyst calls `didFinish` immediately when open page in Safari.
+        // It should not be a cancellation.
+        #if !targetEnvironment(macCatalyst)
         // This happens when user tap "Cancel" in the SFSafariViewController.
         onCancel.call()
+        #endif
     }
 }
 
@@ -398,7 +395,8 @@ extension String {
             "sdk_ver": Constant.SDKVersion,
             "client_id": parameter.channelID,
             "scope": (parameter.scopes.map { $0.rawValue }).joined(separator: " "),
-            "otpId": parameter.otp.otpId,
+            "code_challenge": parameter.pkce.codeChallenge,
+            "code_challenge_method": parameter.pkce.codeChallengeMethod,
             "state": parameter.processID,
             "redirect_uri": Constant.thirdPartyAppReturnURL,
         ]

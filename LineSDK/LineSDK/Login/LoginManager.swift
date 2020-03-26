@@ -19,22 +19,22 @@
 //  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
-import Foundation
+import UIKit
 
 /// Represents a login manager. You can set up the LINE SDK configuration, log in and log out the user with the
 /// LINE authorization flow, and check the authorization status.
 public class LoginManager {
 
     let lock = NSLock()
-    
+
     /// The shared instance of the login manager. Always use this instance to interact with the login process of
     /// the LINE SDK.
     public static let shared = LoginManager()
-    
+
     /// The current login process. A non-`nil` value indicates that there is an ongoing process and the LINE SDK
     /// is waiting for the login result; `nil` otherwise.
     public private(set) var currentProcess: LoginProcess?
-    
+
     /// Checks and returns whether the current `LoginManager` instance is ready to use. Call the `setup`
     /// method to set up the LINE SDK with basic information before you call any other methods or properties
     /// in the LINE SDK.
@@ -43,61 +43,51 @@ public class LoginManager {
         defer { lock.unlock() }
         return setup
     }
-    
+
     /// Checks and returns whether the user was authorized and an access token exists locally. This method
     /// does not check whether the access token has been expired. To verify an access token, use the
-    /// `API.verifyAccessToken` method.
+    /// `API.Auth.verifyAccessToken` method.
     public var isAuthorized: Bool {
         return AccessTokenStore.shared.current != nil
     }
-    
+
     /// Checks and returns whether the authorizing process is currently ongoing.
     public var isAuthorizing: Bool {
         return currentProcess != nil
     }
-
-    /// Sets the preferred language used when logging in with the web authorization flow.
-    ///
-    /// If not set, the web authentication flow shows the login page in the user's device language, or falls
-    /// back to English. Once set, the web page will be displayed in the preferred language.
-    ///
-    /// - Note:
-    ///   This property does not affect the preferred language when LINE is used for authorization.
-    ///   LINE and the login screen are always displayed in the user's device language.
-    public var preferredWebPageLanguage: WebPageLanguage? = nil
     
     /// A flag to prevent setup multiple times
     var setup = false
-    
+
     private init() { }
-    
+
     /// Sets up the current `LoginManager` instance.
     ///
     /// - Parameters:
     ///   - channelID: The channel ID for your app.
-    ///   - universalLinkURL: The universal link used to navigate back to your app from the LINE app.
+    ///   - universalLinkURL: The universal link used to navigate back to your app from LINE.
     /// - Note:
     ///   Call this method before you access any other methods or properties in the LINE SDK. Call this method
     ///   only once because the login manager cannot be set up multiple times.
     ///
     ///   We strongly suggest that you specify a valid universal link URL. Set up your own universal link
     ///   callback for your channel by following the guide on the LINE Developers site. When the callback is set
-    ///   properly, the LINE app will try to bring up your app with the universal link first, which improves the
+    ///   properly, LINE will try to bring up your app with the universal link first, which improves the
     ///   security of the authorization flow and protects your data. If the `universalLinkURL` parameter is
-    ///   `nil`, only a custom URL scheme will be used to open your app after the authorization in the LINE app
+    ///   `nil`, only a custom URL scheme will be used to open your app after the authorization in LINE
     ///   is complete.
     ///
     public func setup(channelID: String, universalLinkURL: URL?) {
-        
+
         lock.lock()
         defer { lock.unlock() }
-        
+
         guard !setup else {
             Log.assertionFailure("Trying to set configuration multiple times is not permitted.")
             return
         }
         defer { setup = true }
-        
+
         let config = LoginConfiguration(channelID: channelID, universalLinkURL: universalLinkURL)
         LoginConfiguration._shared = config
         AccessTokenStore._shared = AccessTokenStore(configuration: config)
@@ -111,7 +101,8 @@ public class LoginManager {
     ///                  `[.profile]`.
     ///   - viewController: The the view controller that presents the login view controller. If `nil`, the topmost
     ///                     view controller in the current view controller hierarchy will be used.
-    ///   - options: The options used during the login process. For more information, see `LoginManagerOptions`.
+    ///   - parameters: The parameters used during the login process. For more information,
+    ///                 see `LoginManager.Parameters`.
     ///   - completion: The completion closure to be invoked when the login action is finished.
     /// - Returns: The `LoginProcess` object which indicates that this method has started the login process.
     ///
@@ -119,40 +110,51 @@ public class LoginManager {
     ///   Only one process can be started at a time. Do not call this method again to start a new login process
     ///   before `completion` is invoked.
     ///
-    ///   If the value of `permissions` is `.profile`, the user profile will be retrieved during the login
+    ///   If the value of `permissions` contains `.profile`, the user profile will be retrieved during the login
     ///   process and contained in the `userProfile` property of the `LoginResult` object in `completion`.
     ///   Otherwise, the `userProfile` property will be `nil`. Use this profile to identify your user. For
     ///   more information, see `UserProfile`.
     ///
-    ///   An access token will be issued if the user authorizes your app. This token and a refresh token 
+    ///   An access token will be issued if the user authorizes your app. This token and a refresh token
     ///   will be automatically stored in the keychain of your app for later use. You do not need to
     ///   refresh the access token manually because any API call will attempt to refresh the access token if
-    ///   necessary. However, if you would like to refresh the access token manually, use the
-    ///   `API.refreshAccessToken(with:)` method.
+    ///   necessary. However, if you need to refresh the access token manually, use the
+    ///   `API.Auth.refreshAccessToken(with:)` method.
     ///
     @discardableResult
     public func login(
         permissions: Set<LoginPermission> = [.profile],
         in viewController: UIViewController? = nil,
-        options: LoginManagerOptions = [],
-        completionHandler completion: @escaping (Result<LoginResult, LineSDKError>) -> Void) -> LoginProcess?
+        parameters: LoginManager.Parameters = .init(),
+        completionHandler completion: @escaping (Result<LoginResult, LineSDKError>) -> Void
+    ) -> LoginProcess?
     {
         lock.lock()
         defer { lock.unlock() }
-        
-        guard currentProcess == nil else {
-            Log.assertionFailure("Trying to start another login process " +
-                "while the previous one still valid is not permitted.")
+
+        if !parameters.allowRecreatingLoginProcess && isAuthorizing {
+            Log.print("Trying to start another login process while previous process is still valid. " +
+            "New login process is ignored. Set `allowRecreatingLoginProcess` in login parameter" +
+            "if you want to allow this action.")
             return nil
         }
         
+        if parameters.allowRecreatingLoginProcess && isAuthorizing {
+            if let process = currentProcess {
+                self.currentProcess?.onFail.call(
+                    LineSDKError.generalError(reason: .processDiscarded(process))
+                )
+            } else {
+                Log.assertionFailure("Current process couldn't be asserted. This shouldn't happen." +
+                    "Please report an issue here: https://github.com/line/line-sdk-ios-swift/issues")
+            }
+        }
+
         let process = LoginProcess(
             configuration: LoginConfiguration.shared,
             scopes: permissions,
-            options: options,
-            preferredWebPageLanguage: preferredWebPageLanguage,
+            parameters: parameters,
             viewController: viewController)
-        process.start()
         process.onSucceed.delegate(on: self) { [unowned process] (self, result) in
             self.currentProcess = nil
             self.postLogin(
@@ -165,11 +167,13 @@ public class LoginManager {
             self.currentProcess = nil
             completion(.failure(error.sdkError))
         }
+
+        process.start()
         
         self.currentProcess = process
         return currentProcess
     }
-    
+
     /// Actions after auth process finishes. We do something like storing token, getting user profile and ID
     /// token verification before we can inform framework users every thing is done.
     ///
@@ -192,7 +196,7 @@ public class LoginManager {
 
         // Any possible errors will be held here.
         var errors: [Error] = []
-        
+
         if token.permissions.contains(.profile) {
             // We need to pass token since it is not stored in keychain yet.
             getUserProfile(with: token, in: group) { result in
@@ -200,7 +204,7 @@ public class LoginManager {
                 catch { errors.append(error) }
             }
         }
-        
+
         if token.permissions.contains(.openID) {
             getProviderMetadata(for: token, in: group) { result in
                 do { providerMetadata = try result.get() }
@@ -232,7 +236,7 @@ public class LoginManager {
                     return
                 }
             }
-            
+
             // Everything goes fine now. Store token.
             let result = Result {
                 try AccessTokenStore.shared.setCurrentToken(token)
@@ -252,10 +256,10 @@ public class LoginManager {
     ///
     /// - Parameter completion: The completion closure to be invoked when the logout action is finished.
     public func logout(completionHandler completion: @escaping (Result<(), LineSDKError>) -> Void) {
-        API.revokeRefreshToken(completionHandler: completion)
+        API.Auth.revokeRefreshToken(completionHandler: completion)
     }
-    
-    /// Asks this `LoginManager` object to handle a URL callback from either the LINE app or the web login flow.
+
+    /// Asks this `LoginManager` object to handle a URL callback from either LINE or the web login flow.
     ///
     /// - Parameters:
     ///   - app: The singleton app object.
@@ -273,8 +277,74 @@ public class LoginManager {
     {
         guard let url = url else { return false }
         guard let currentProcess = currentProcess else { return false }
-        
+
         return currentProcess.resumeOpenURL(url: url)
+    }
+    
+    // MARK: - Deprecated
+    
+    /// Sets the preferred language used when logging in with the web authorization flow.
+    ///
+    /// If not set, the web authentication flow shows the login page in the user's device language, or falls
+    /// back to English. Once set, the web page will be displayed in the preferred language.
+    ///
+    /// - Note:
+    ///   This property does not affect the preferred language when LINE is used for authorization.
+    ///   LINE and the login screen are always displayed in the user's device language.
+    @available(
+    *, deprecated,
+    message: """
+    Set the preferred language in a `LoginManager.Parameters` value and use
+    `login(permissions:in:parameters:completionHandler:)` instead.")
+    """)
+    public var preferredWebPageLanguage: WebPageLanguage? = nil
+    
+    /// Logs in to the LINE Platform.
+    ///
+    /// - Parameters:
+    ///   - permissions: The set of permissions requested by your app. The default value is
+    ///                  `[.profile]`.
+    ///   - viewController: The the view controller that presents the login view controller. If `nil`, the topmost
+    ///                     view controller in the current view controller hierarchy will be used.
+    ///   - options: The options used during the login process. For more information, see `LoginManagerOptions`.
+    ///   - completion: The completion closure to be invoked when the login action is finished.
+    /// - Returns: The `LoginProcess` object which indicates that this method has started the login process.
+    ///
+    /// - Note:
+    ///   Only one process can be started at a time. Do not call this method again to start a new login process
+    ///   before `completion` is invoked.
+    ///
+    ///   If the value of `permissions` is `.profile`, the user profile will be retrieved during the login
+    ///   process and contained in the `userProfile` property of the `LoginResult` object in `completion`.
+    ///   Otherwise, the `userProfile` property will be `nil`. Use this profile to identify your user. For
+    ///   more information, see `UserProfile`.
+    ///
+    ///   An access token will be issued if the user authorizes your app. This token and a refresh token
+    ///   will be automatically stored in the keychain of your app for later use. You do not need to
+    ///   refresh the access token manually because any API call will attempt to refresh the access token if
+    ///   necessary. However, if you need to refresh the access token manually, use the
+    ///   `API.Auth.refreshAccessToken(with:)` method.
+    ///
+    @available(
+    *, deprecated,
+    message: """
+    Convert the `options` to a `LoginManager.Parameters` value and
+    use `login(permissions:in:parameters:completionHandler:)` instead.")
+    """)
+    @discardableResult
+    public func login(
+        permissions: Set<LoginPermission> = [.profile],
+        in viewController: UIViewController? = nil,
+        options: LoginManagerOptions,
+        completionHandler completion: @escaping (Result<LoginResult, LineSDKError>) -> Void) -> LoginProcess?
+    {
+        let parameters = Parameters(options: options, language: preferredWebPageLanguage)
+        return login(
+            permissions: permissions,
+            in: viewController,
+            parameters: parameters,
+            completionHandler: completion
+        )
     }
 }
 
@@ -285,7 +355,7 @@ extension LoginManager {
         handler: @escaping (Result<UserProfile, LineSDKError>) -> Void)
     {
         group.enter()
-        
+
         Session.shared.send(GetUserProfileRequestInjectedToken(token: token.value)) { profileResult in
             handler(profileResult)
             group.leave()
@@ -312,8 +382,8 @@ extension LoginManager {
             group.leave()
             return
         }
-        
-        // Use Discovery Document to find JWKs URI. How about introducing some promise mechanism 
+
+        // Use Discovery Document to find JWKs URI. How about introducing some promise mechanism
         Session.shared.send(GetDiscoveryDocumentRequest()) { documentResult in
             switch documentResult {
             case .success(let document):
@@ -342,12 +412,13 @@ extension LoginManager {
             }
         }
     }
-    
+
     func verifyIDToken(
         _ token: JWT,
         providerMetadata: DiscoveryDocument.ResolvedProviderMetadata,
         process: LoginProcess, userID: String?) throws
     {
+
         try token.verify(with: providerMetadata.jwk)
         
         let payload = token.payload
@@ -357,62 +428,11 @@ extension LoginManager {
             try payload.verify(keyPath: \.subject, expected: userID)
         }
         try payload.verify(keyPath: \.audience, expected: process.configuration.channelID)
-        
+
         let now = Date()
         let allowedClockSkew: TimeInterval = 5 * 60
         try payload.verify(keyPath: \.expiration, laterThan: now.addingTimeInterval(-allowedClockSkew))
         try payload.verify(keyPath: \.issueAt, earlierThan: now.addingTimeInterval(allowedClockSkew))
         try payload.verify(keyPath: \.nonce, expected: process.IDTokenNonce!)
-    }
-}
-
-extension LoginManager {
-    /// Represents the language used in web page.
-    public struct WebPageLanguage {
-        public let rawValue: String
-
-        /// Creates a web page language with a given raw string language code value.
-        ///
-        /// - Parameter rawValue: The value represents the language code.
-        public init(rawValue: String) {
-            self.rawValue = rawValue
-        }
-
-        /// The Arabic language.
-        public static let arabic = WebPageLanguage(rawValue: "ar")
-        /// The German language.
-        public static let german = WebPageLanguage(rawValue: "de")
-        /// The English language.
-        public static let english = WebPageLanguage(rawValue: "en")
-        /// The Spanish language.
-        public static let spanish = WebPageLanguage(rawValue: "es")
-        /// The French language.
-        public static let french = WebPageLanguage(rawValue: "fr")
-        /// The Indonesian language.
-        public static let indonesian = WebPageLanguage(rawValue: "id")
-        /// The Italian language.
-        public static let italian = WebPageLanguage(rawValue: "it")
-        /// The Japanese language.
-        public static let japanese = WebPageLanguage(rawValue: "jp")
-        /// The Korean language.
-        public static let korean = WebPageLanguage(rawValue: "ko")
-        /// The Malay language.
-        public static let malay = WebPageLanguage(rawValue: "ms")
-        /// The Brazilian Portuguese language.
-        public static let portugueseBrazilian = WebPageLanguage(rawValue: "pt-BR")
-        /// The European Portuguese language.
-        public static let portugueseEuropean = WebPageLanguage(rawValue: "pt-PT")
-        /// The Russian language.
-        public static let russian = WebPageLanguage(rawValue: "ru")
-        /// The Thai language.
-        public static let thai = WebPageLanguage(rawValue: "th")
-        /// The Turkish language.
-        public static let turkish = WebPageLanguage(rawValue: "tr")
-        /// The Vietnamese language.
-        public static let vietnamese = WebPageLanguage(rawValue: "vi")
-        /// The Simplified Chinese language.
-        public static let chineseSimplified = WebPageLanguage(rawValue: "zh-Hans")
-        /// The Traditional Chinese language.
-        public static let chineseTraditional = WebPageLanguage(rawValue: "zh-Hant")
     }
 }

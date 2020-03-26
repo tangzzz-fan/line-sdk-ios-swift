@@ -37,7 +37,7 @@ class LoginViewController: UIViewController, IndicatorDisplay {
         loginButton.presentingViewController = self
 
         // You could set the permissions you need or use default permissions
-        loginButton.permissions = [.profile, .friends, .groups, .messageWrite, .openID]
+        loginButton.permissions = [.profile, .friends, .groups, .oneTimeShare, .openID]
 
         view.addSubview(loginButton)
         
@@ -56,13 +56,23 @@ extension LoginViewController: LoginButtonDelegate {
         }
     }
     
-    func loginButton(_ button: LoginButton, didFailLogin error: Error) {
+    func loginButton(_ button: LoginButton, didFailLogin error: LineSDKError) {
         hideIndicator()
+        #if targetEnvironment(macCatalyst)
+        // For macCatalyst app, we allow process discarding so just ignore this error.
+        if case .generalError(reason: .processDiscarded(let p)) = error {
+            print("Process discarded: \(p)")
+            return
+        }
+        #endif
+        
         UIAlertController.present(in: self, error: error)
     }
     
     func loginButtonDidStartLogin(_ button: LoginButton) {
+        #if !targetEnvironment(macCatalyst)
         showIndicator()
+        #endif
     }
     
 }

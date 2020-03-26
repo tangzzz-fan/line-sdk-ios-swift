@@ -33,9 +33,9 @@ import Foundation
 /// - responseFailed: An error occurred while handling a response.
 /// - authorizeFailed: An error occurred while authorizing a user.
 /// - generalError: An error occurred while performing another process in the LINE SDK.
-/// - untypedError: An error not defined in the LINE SDK.
+/// - untypedError: An error not defined in the LINE SDK occurred.
 public enum LineSDKError: Error {
-    
+
     /// The possible underlying reasons a `.requestFailed` error occurs.
     ///
     /// - missingURL: The `URL` object is missing while encoding a request. Code 1001.
@@ -45,14 +45,14 @@ public enum LineSDKError: Error {
     public enum RequestErrorReason {
         /// The `URL` object is missing while encoding a request. Code 1001.
         case missingURL
-        
+
         /// The request requires an access token but it is unavailable. Code 1002.
         case lackOfAccessToken
-        
+
         /// The request requires a JSON body but the provided data cannot be encoded to valid JSON. Code 1003.
         case jsonEncodingFailed(Error)
     }
-    
+
     /// The possible underlying reasons a `.responseFailed` error occurs.
     ///
     /// - URLSessionError: An error occurred in the underlying `URLSession` object. Code 2001.
@@ -62,33 +62,40 @@ public enum LineSDKError: Error {
     /// - invalidHTTPStatusAPIError: The received response contains an invalid HTTP status code. Code 2004.
     public enum ResponseErrorReason {
         
+        /// Error details for `invalidHTTPStatusAPIError`. When `ResponseErrorReason` is `invalidHTTPStatusAPIError`, 
+        /// `APIErrorDetail` is the associated value. It contains the HTTP status code and the error 
+        /// messages returned by the LINE server.
         public struct APIErrorDetail {
-            let code: Int
-            let error: APIError?
-            let raw: HTTPURLResponse
-            let rawString: String?
+            
+            /// Error code received from server. This is usually the HTTP status code.
+            public let code: Int
+            
+            /// An `APIError` object, if the response data can be converted to it. If not: `nil`.
+            public let error: APIError?
+            
+            /// The raw response when this `invalidHTTPStatusAPIError` happens.
+            public let raw: HTTPURLResponse
+            
+            /// The plain error text converted from the response body data, if existing.
+            public let rawString: String?
         }
-        
+
         /// An error occurred in the underlying `URLSession` object. Code 2001.
         case URLSessionError(Error)
-        
+
         /// The response is not a valid `HTTPURLResponse` object. Code 2002.
         case nonHTTPURLResponse
-        
+
         /// The received data cannot be parsed to an instance of the target type. Code 2003.
         /// - Associated values: Parsing destination type, original data, and system underlying error.
-        case dataParsingFailed(Any.Type, Data, Error)
-        
+        case dataParsingFailed(Any.Type, Data, Error?)
+
         /// The received response contains an invalid HTTP status code. Code 2004.
         ///
-        /// Associated `APIErrorDetail`
-        /// contains information about the error detail. If the response data can be converted to an `APIError` object,
-        /// it will be associated with `APIErrorDetail`. The `error` property in `APIErrorDetail` indicates the cause
-        /// of an error. Otherwise, the `detail.error` will be `nil`. In both cases, `detail.raw` and
-        /// `detail.rawString` will contain the plain response and error text respectively.
+        /// The associated value `APIErrorDetail` contains error details.
         case invalidHTTPStatusAPIError(detail: APIErrorDetail)
     }
-    
+
     /// The possible underlying reasons an `.authorizeFailed` error occurs.
     ///
     /// - exhaustedLoginFlow: There is no other login method left. The login process cannot be completed.
@@ -105,7 +112,7 @@ public enum LineSDKError: Error {
     ///                         contain necessary information. Code 3007.
     /// - invalidLineURLResultCode: The received `URL` object while opening the app has an unknown result
     ///                             code. Code 3008.
-    /// - lineClientError: An error occurs in the LINE app during the authorization process. Code 3009.
+    /// - lineClientError: An error occurs in LINE during the authorization process. Code 3009.
     /// - responseStateValueNotMatching: Failed to verify the `state` value. The received URL response is
     ///                                  not from the original authorization request. Code 3010.
     /// - webLoginError: An error occurs in the web login flow during the authorization process. Code 3011.
@@ -121,93 +128,114 @@ public enum LineSDKError: Error {
     ///                certificate or a key, or an unsupported algorithm is used. For more information, see
     ///                `CryptoError`. Code 3016.
     public enum AuthorizeErrorReason {
-        
+
         /// There is no other login method left. The login process cannot be completed. Code 3001.
         case exhaustedLoginFlow
-        
+
         /// The view hierarchy or view controller hierarchy is malformed and the LINE
         /// SDK cannot show its login view controller. Code 3002.
         case malformedHierarchy
-        
+
         /// The user cancelled or interrupted the login process. Code 3003.
         case userCancelled
-        
+
         /// The `stop` method is called during the login process. Code 3004.
         case forceStopped
-        
+
         /// The received `URL` object while opening the app does not match the defined URL scheme. Code 3005.
         case callbackURLSchemeNotMatching
         
         /// The source application is invalid and cannot finish the authorization process.
         /// Not in use anymore from LINE SDK 5.2.4. Code 3006.
         case invalidSourceApplication
-        
+
         /// The received `URL` object while opening the app is invalid or does not
         /// contain necessary information. Code 3007.
         /// - url: The url which is used to open current app.
         /// - message: A human readable message to describe the error reason.
         case malformedRedirectURL(url: URL, message: String?)
-        
+
         /// The received `URL` object while opening the app has an unknown result code. Code 3008.
         /// - Associated value: The `resultCode` in the response url.
         case invalidLineURLResultCode(String)
-        
-        /// An error occurs in the LINE app during the authorization process. Code 3009.
-        /// - code: The code returned by LINE client during the authorization.
+
+        /// An error occurs in LINE during the authorization process. Code 3009.
+        /// - code: The code returned by LINE during the authorization.
         /// - message: The message describes the error.
         case lineClientError(code: String, message: String?)
-        
+
         /// Failed to verify the `state` value. The received URL response
         /// is not from the original authorization request. Code 3010.
         /// - expected: Expected state value.
         /// - got: The state value actually got from URL response.
         case responseStateValueNotMatching(expected: String, got: String?)
-        
+
         /// An error occurs in the web login flow during the authorization process. Code 3011.
         /// - error: Error reason when login with web flow.
         /// - description: A human readable message to describe the error reason.
         case webLoginError(error: String, description: String?)
-        
+
         /// An error occurs while accessing the keychain. It prevents the LINE SDK from
         ///  loading data from or writing data to the keychain. Code 3012.
         /// - status: The `OSStatus` number system gives.
         case keychainOperation(status: OSStatus)
-        
+
         /// The retrieved authorization information from the keychain cannot be converted to valid data. Code 3013.
         case invalidDataInKeychain
-        
+
         /// The authorization request contains the OpenID scope, but any ID token is not found
         /// in or parsed from the server response. Code 3014.
         /// - raw: Raw value of the ID Token, which cannot be parsed correctly.
         case lackOfIDToken(raw: String?)
-        
+
         /// The public key is not found for a give key ID or the key ID does not exist. Code 3015.
         /// - keyID: The key ID specified in ID Token header which should be used.
         case JWTPublicKeyNotFound(keyID: String?)
-        
+
         /// An error occurred at the LINE SDK crypto part. Usually this indicates a malformed
         /// certificate or a key, or an unsupported algorithm is used. For more information, see
         /// `CryptoError`. Code 3016.
         /// - error: Underlying `CryptoError` value.
         case cryptoError(error: CryptoError)
     }
-    
+
     /// The possible underlying reasons `.generalError` occurs.
     ///
     /// - conversionError: Cannot convert `string` to valid data with `encoding`. Code 4001.
     /// - parameterError: The method is invoked with an invalid parameter. Code 4002.
+    /// - notOriginalTask: The image download task finished but it is not the original task issued. Code 4003.
+    /// - processDiscarded: The process is discarded when a new login process is created. This only
+    ///                     happens when `allowRecreatingLoginProcess` in `LoginManager.Parameters` is `true` 
+    ///                     and users are trying to create another login process. Code 4004.
     public enum GeneralErrorReason {
         /// Cannot convert `string` to valid data with `encoding`. Code 4001.
         case conversionError(string: String, encoding: String.Encoding)
-        
+
         /// The method is invoked with an invalid parameter. Code 4002.
         case parameterError(parameterName: String, description: String)
+
+        /// The image download task finished but it is not the original task issued. Code 4003.
+        case notOriginalTask(token: UInt)
+        
+        /// The process is discarded when a new login process is created. This only
+        /// happens when `allowRecreatingLoginProcess` in `LoginManager.Parameters` is `true` 
+        /// and users are trying to create another login process. Code 4004.
+        case processDiscarded(LoginProcess)
     }
-    
+
+    /// An error occurred while constructing a request.
     case requestFailed(reason: RequestErrorReason)
+    
+    /// An error occurred while handling a response.
     case responseFailed(reason: ResponseErrorReason)
+    
+    /// An error occurred while authorizing a user.
     case authorizeFailed(reason: AuthorizeErrorReason)
+    
+    /// An error occurred while performing another process in the LINE SDK.
     case generalError(reason: GeneralErrorReason)
+    
+    /// An error not defined in the LINE SDK occurred.
     case untypedError(error: Error)
 }
 
@@ -226,7 +254,7 @@ extension LineSDKError {
         }
         return false
     }
-    
+
     /// Checks and returns whether the `LineSDKError` is a response error.
     public var isResponseError: Bool {
         if case .responseFailed = self {
@@ -234,7 +262,7 @@ extension LineSDKError {
         }
         return false
     }
-    
+
     /// Checks and returns whether the `LineSDKError` is an authorization error.
     public var isAuthorizeError: Bool {
         if case .authorizeFailed = self {
@@ -242,7 +270,7 @@ extension LineSDKError {
         }
         return false
     }
-    
+
     /// Checks and returns whether the `LineSDKError` is a general error.
     public var isGeneralError: Bool {
         if case .generalError = self {
@@ -262,29 +290,29 @@ extension LineSDKError {
         }
         return false
     }
-    
+
     /// Checks and returns whether the `LineSDKError` is a bad request error.
     public var isBadRequest: Bool {
         return isResponseError(statusCode: 400)
     }
-    
+
     /// Checks and returns whether the `LineSDKError` is a refresh token error. Typically, when the user uses
-    /// an expired access token to send an API request, an automatic token refresh operation with the
+    /// an expired access token to send a public API request, an automatic token refresh operation with the
     /// current refresh token will be triggered. This error typically occurs when the refresh token also
     /// expires or is invalid. If this error occurs, let the user log in again before you can continue to
     /// access the LINE Platform.
     public var isRefreshTokenError: Bool {
         let refreshTokenRequest = PostRefreshTokenRequest(channelID: "", refreshToken: "")
-        let url = refreshTokenRequest.baseURL.appendingPathComponentIfNotEmpty(refreshTokenRequest.path)
+        let url = refreshTokenRequest.baseURL.appendingPathComponentIfNotEmpty(refreshTokenRequest)
         return isResponseError(statusCode: 400, url: url)
     }
-    
+
     /// Checks and returns whether the `LineSDKError` is a permission error. This typically means you
     /// do not have sufficient permissions to access an endpoint of the LINE Platform.
     public var isPermissionError: Bool {
         return isResponseError(statusCode: 403)
     }
-    
+
     /// Checks and returns whether the `LineSDKError` is an access token error. Usually, it means the user's
     /// access token is expired or malformed.
     public var isTokenError: Bool {
@@ -322,13 +350,13 @@ extension LineSDKError {
         guard url == detail.raw.url else { return false }
         return true
     }
-    
+
     /// Checks and returns whether the `LineSDKError` is a timeout error caused by the underlying URL
     /// session error.
     public var isURLSessionTimeOut: Bool {
         return isURLSessionErrorCode(sessionErrorCode: NSURLErrorTimedOut)
     }
-    
+
     /// Checks whether the `LineSDKError` is a URL session error with a specified error code.
     ///
     /// - Parameter code: The underlying URL session error code. See `URLError` in the documentation for the
@@ -368,7 +396,7 @@ extension LineSDKError: CustomNSError {
         case .untypedError: return -1
         }
     }
-    
+
     /// :nodoc:
     public var errorUserInfo: [String : Any] {
         switch self {
@@ -379,7 +407,7 @@ extension LineSDKError: CustomNSError {
         case .untypedError(error: let error): return [LineSDKErrorUserInfoKey.underlyingError.rawValue: error]
         }
     }
-    
+
     /// :nodoc:
     public static var errorDomain: String {
         return "LineSDKError"
@@ -399,7 +427,7 @@ extension LineSDKError.RequestErrorReason {
             return "The request requires a JSON body, but provided data cannot be encoded to valid JSON. \(error)"
         }
     }
-    
+
     var errorCode: Int {
         switch self {
         case .missingURL:         return 1001
@@ -407,7 +435,7 @@ extension LineSDKError.RequestErrorReason {
         case .jsonEncodingFailed: return 1003
         }
     }
-    
+
     var errorUserInfo: [String: Any] {
         var userInfo: [LineSDKErrorUserInfoKey: Any] = [:]
         switch self {
@@ -428,7 +456,8 @@ extension LineSDKError.ResponseErrorReason {
         case .nonHTTPURLResponse:
             return "The response is not a valid `HTTPURLResponse`."
         case .dataParsingFailed(let type, let data, let error):
-            let result = "Parsing response data to \(type) failed: \(error)."
+            let errorMessage = error != nil ? "\(error!)" : "<nil>"
+            let result = "Parsing response data to \(type) failed: \(errorMessage)."
             if let text = String(data: data, encoding: .utf8) {
                 return result + "\nOriginal: \(text)"
             } else {
@@ -445,7 +474,7 @@ extension LineSDKError.ResponseErrorReason {
             }
         }
     }
-    
+
     var errorCode: Int {
         switch self {
         case .URLSessionError:           return 2001
@@ -454,7 +483,7 @@ extension LineSDKError.ResponseErrorReason {
         case .invalidHTTPStatusAPIError: return 2004
         }
     }
-    
+
     var errorUserInfo: [String: Any] {
         var userInfo: [LineSDKErrorUserInfoKey: Any] = [:]
         switch self {
@@ -516,7 +545,7 @@ extension LineSDKError.AuthorizeErrorReason {
             return "CryptoError: \(error.errorDescription ?? "nil")"
         }
     }
-    
+
     var errorCode: Int {
         switch self {
         case .exhaustedLoginFlow:            return 3001
@@ -537,7 +566,7 @@ extension LineSDKError.AuthorizeErrorReason {
         case .cryptoError:                   return 3016
         }
     }
-    
+
     var errorUserInfo: [String: Any] {
         var userInfo: [LineSDKErrorUserInfoKey: Any] = [:]
         switch self {
@@ -581,16 +610,22 @@ extension LineSDKError.GeneralErrorReason {
             return "Cannot convert target \"\(text)\" to valid data under \(encoding) encoding."
         case .parameterError(let parameterName, let reason):
             return "Method invoked with an invalid parameter \"\(parameterName)\". Reason: \(reason)"
+        case .notOriginalTask(let token):
+            return "Image downloading finished but it is not the original one. Token \"\(token)\"."
+        case .processDiscarded(let process):
+            return "Current process is discarded. \(process)"
         }
     }
-    
+
     var errorCode: Int {
         switch self {
         case .conversionError(_, _): return 4001
         case .parameterError(_, _):  return 4002
+        case .notOriginalTask(_):    return 4003
+        case .processDiscarded:      return 4004
         }
     }
-    
+
     var errorUserInfo: [String: Any] {
         var userInfo: [LineSDKErrorUserInfoKey: Any] = [:]
         switch self {
@@ -600,6 +635,9 @@ extension LineSDKError.GeneralErrorReason {
         case .parameterError(let parameterName, let reason):
             userInfo[.parameterName] = parameterName
             userInfo[.reason] = reason
+        case .notOriginalTask: break
+        case .processDiscarded(let process):
+            userInfo[.process] = process
         }
         return .init(uniqueKeysWithValues: userInfo.map { ($0.rawValue, $1) })
     }
@@ -615,6 +653,7 @@ extension Result where Failure == LineSDKError {
     }
 }
 
+/// :nodoc:
 public enum LineSDKErrorUserInfoKey: String {
     case underlyingError
     case statusCode
@@ -633,5 +672,5 @@ public enum LineSDKErrorUserInfoKey: String {
     case index
     case key
     case got
+    case process
 }
-

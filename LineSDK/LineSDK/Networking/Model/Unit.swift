@@ -21,4 +21,5 @@
 
 import Foundation
 
-struct Unit: Decodable {}
+/// Represents a signal of some event. It is a decodable version of `Void`.
+public struct Unit: Decodable {}

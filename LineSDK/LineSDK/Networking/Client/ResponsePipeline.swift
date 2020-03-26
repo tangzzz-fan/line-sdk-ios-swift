@@ -39,7 +39,23 @@ public protocol ResponsePipelineTerminator: class { // Use class protocol for ea
 /// perform data processing by invoking `closure` with a proper
 /// `ResponsePipelineRedirectorAction` enumeration member.
 public protocol ResponsePipelineRedirector: class { // Use class protocol for easier Equatable conforming
+    
+    /// Whether this redirector should be applied to execute and handle a received HTTP response.
+    /// - Parameters:
+    ///   - request: The original `Request`.
+    ///   - data: The received data contained in the HTTP response.
+    ///   - response: The received HTTP response to the request.
     func shouldApply<T: Request>(request: T, data: Data, response: HTTPURLResponse) -> Bool
+    
+    /// Performs the redirect action for current redirector. Define how to process the received response and data.
+    /// When the process is finished, call `closure` with the required action to make the response pipeline continue.
+    /// - Parameters:
+    ///   - request: The original `Request`.
+    ///   - data: The received data contained in the HTTP response.
+    ///   - response: The received HTTP response to the request.
+    ///   - closure: A block to be called when you have finished processing the received response and data.
+    ///              The block takes a single parameter, which must be one of the member in the
+    ///              `ResponsePipelineRedirectorAction` enumeration.
     func redirect<T: Request>(
         request: T,
         data: Data,
@@ -141,7 +157,7 @@ class RefreshTokenRedirector: ResponsePipelineRedirector {
         response: HTTPURLResponse,
         done closure: @escaping (ResponsePipelineRedirectorAction) throws -> Void) throws
     {
-        API.refreshAccessToken { result in
+        API.Auth.refreshAccessToken { result in
             switch result {
             case .success(_):
                 try? closure(.restartWithout(.redirector(self)))
@@ -174,7 +190,7 @@ class BadHTTPStatusRedirector: ResponsePipelineRedirector {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let rawString = String(data: data, encoding: .utf8)
         do {
-            // There are two possible error format now.
+            // There are two possible error formats now.
             // First, try to parse the error into a auth related error
             let error = try decoder.decode(InternalAuthError.self, from: data)
             let detail = LineSDKError.ResponseErrorReason.APIErrorDetail(

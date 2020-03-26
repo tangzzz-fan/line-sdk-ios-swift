@@ -90,12 +90,19 @@
     XCTAssertEqual(result.expiresIn, 0);
 }
 
-- (void)testLoginManagerOptionInterface {
-    XCTAssertNotNil(LineSDKLoginManagerOptions.onlyWebLogin);
-    XCTAssertNotNil(LineSDKLoginManagerOptions.botPromptNormal);
-    XCTAssertNotNil(LineSDKLoginManagerOptions.botPromptAggressive);
+- (void)testLoginManagerParametersInterface {
+    LineSDKLoginManagerParameters *param = [[LineSDKLoginManagerParameters alloc] init];
+    XCTAssertNotNil(param);
     
-    XCTAssertNotNil([[LineSDKLoginManagerOptions alloc] initWithRawValue:1]);
+    param.onlyWebLogin = YES;
+    param.botPromptStyle = [LineSDKLoginManagerBotPrompt normal];
+    param.preferredWebPageLanguage = @"ja";
+    param.IDTokenNonce = @"test";
+    
+    XCTAssertTrue([param onlyWebLogin]);
+    XCTAssertTrue([[param.botPromptStyle rawValue] isEqualToString: @"normal"]);
+    XCTAssertTrue([param.preferredWebPageLanguage isEqualToString: @"ja"]);
+    XCTAssertTrue([param.IDTokenNonce isEqualToString: @"test"]);
 }
 
 - (void)testLoginResultInterface {
@@ -103,6 +110,7 @@
     XCTAssertNil(result.accessToken);
     XCTAssertNil(result.permissions);
     XCTAssertNil(result.userProfile);
+    XCTAssertNil(result.IDTokenNonce);
 }
 
 - (void)testLoginProcessInterface {
@@ -119,9 +127,21 @@
     XCTAssertFalse(manager.isAuthorizing);
 
     [manager setupWithChannelID:@"" universalLinkURL:nil];
+
     [manager loginWithPermissions:nil
                  inViewController:nil
-                          options:nil
+                completionHandler:^(LineSDKLoginResult *result, NSError *error)
+    {
+        XCTAssertNil([result accessToken]);
+        XCTAssertNil([result permissions]);
+        XCTAssertNil([result userProfile]);
+        XCTAssertNil([result friendshipStatusChanged]);
+    }];
+
+    LineSDKLoginManagerParameters *parameters = [[LineSDKLoginManagerParameters alloc] init];
+    [manager loginWithPermissions:nil
+                 inViewController:nil
+                       parameters:parameters
                 completionHandler:^(LineSDKLoginResult *result, NSError *error)
     {
         XCTAssertNil([result accessToken]);
@@ -139,15 +159,6 @@
     XCTAssertFalse(opened);
     
     XCTAssertNotNil([LineSDKLoginManager sharedManager]);
-}
-
-- (void)testLoginManagerLangSettingInterface {
-    LineSDKLoginManager *manager = [LineSDKLoginManager sharedManager];
-    XCTAssertNil(manager.preferredWebPageLanguage);
-    [manager setPreferredWebPageLanguage:@"zh-Hans"];
-    XCTAssertEqual(manager.preferredWebPageLanguage, @"zh-Hans");
-    manager.preferredWebPageLanguage = nil;
-    XCTAssertNil(manager.preferredWebPageLanguage);
 }
 
 - (void)testHexColorInterface {
@@ -181,7 +192,10 @@
     LineSDKUser *user = nil;
     XCTAssertNil(user.userID);
     XCTAssertNil(user.displayName);
+    XCTAssertNil(user.displayNameOriginal);
+    XCTAssertNil(user.displayNameOverridden);
     XCTAssertNil(user.pictureURL);
+    XCTAssertNil(user.pictureURLSmall);
 }
 
 - (void)testGroupInterface {
@@ -189,6 +203,7 @@
     XCTAssertNil(group.groupID);
     XCTAssertNil(group.groupName);
     XCTAssertNil(group.pictureURL);
+    XCTAssertNil(group.pictureURLSmall);
 }
 
 - (void)testGetFriendsResponseInterface {
@@ -271,7 +286,7 @@
     button.buttonPresentingViewController = nil;
     button.loginDelegate = nil;
     button.loginPermissions = [NSSet setWithObject:[LineSDKLoginPermission profile]];
-    button.loginManagerOptions = @[[LineSDKLoginManagerOptions onlyWebLogin]];
+    button.loginManagerParameters = [[LineSDKLoginManagerParameters alloc] init];
     button.buttonSizeValue = LineSDKLoginButtonSizeSmall;
     button.buttonTextValue = @"Hello";
     button = nil;
@@ -280,6 +295,18 @@
     
 - (void)testConstantInterface {
     XCTAssertNotNil(LineSDKConstant.SDKVersion);
+}
+
+- (void)testShareViewControllerAuthorizationStatus {
+    NSArray<LineSDKMessageShareAuthorizationStatus *> *status =
+        [LineSDKShareViewController localAuthorizationStatusForSendingMessage];
+    XCTAssertEqual([status count], 1);
+    XCTAssertTrue([status containsObject:[LineSDKMessageShareAuthorizationStatus lackOfToken]]);
+}
+
+- (void)testLineSDKMessageSendingToken {
+    LineSDKMessageSendingToken *token = nil;
+    XCTAssertNil(token.token);
 }
 
 @end

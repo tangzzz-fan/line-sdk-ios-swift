@@ -53,7 +53,6 @@ class LoginManagerTests: XCTestCase, ViewControllerCompatibleTest {
         XCTAssertFalse(LoginManager.shared.isAuthorizing)
         
         let delegateStub = SessionDelegateStub(stubs: [
-            .init(data: PostOTPRequest.successData, responseCode: 200),
             .init(data: PostExchangeTokenRequest.successData, responseCode: 200),
             .init(data: GetUserProfileRequest.successData, responseCode: 200)
         ])
@@ -100,7 +99,6 @@ class LoginManagerTests: XCTestCase, ViewControllerCompatibleTest {
         XCTAssertFalse(LoginManager.shared.isAuthorizing)
 
         let delegateStub = SessionDelegateStub(stubs: [
-            .init(data: PostOTPRequest.successData, responseCode: 200),
             .init(data: PostExchangeTokenRequest.successData, responseCode: 200),
             .init(data: GetUserProfileRequest.successData, responseCode: 200)
         ])
@@ -134,7 +132,7 @@ class LoginManagerTests: XCTestCase, ViewControllerCompatibleTest {
             XCTAssertTrue(handled)
         }
 
-        waitForExpectations(timeout: 1, handler: nil)
+        waitForExpectations(timeout: 2, handler: nil)
     }
     
     func testLogout() {
@@ -167,7 +165,7 @@ class LoginManagerTests: XCTestCase, ViewControllerCompatibleTest {
             delegate: delegateStub
         )
 
-        API.refreshAccessToken { result in
+        API.Auth.refreshAccessToken { result in
             XCTAssertNotNil(AccessTokenStore.shared.current?.IDToken)
             expect.fulfill()
         }
